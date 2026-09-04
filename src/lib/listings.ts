@@ -14,7 +14,7 @@ import {
 import { resolveCategoryCover } from "@/lib/category-cover";
 import { SEED_LISTINGS, SEED_NOTES } from "@/lib/seed-data";
 import { isCountyInState, placeLabel } from "@/lib/geo";
-import { isUserUploadPath } from "@/lib/upload-path";
+import { isUserUploadPath, USER_IMAGE_PATH_MAX } from "@/lib/upload-path";
 
 export type Listing = {
   id: number;
@@ -381,7 +381,7 @@ const createInput = z.object({
   state: z.string().trim().length(2).optional(),
   farmName: z.string().trim().min(2).max(40),
   farmNote: z.string().trim().min(8).max(160),
-  imagePath: z.string().min(1).max(160),
+  imagePath: z.string().min(1).max(USER_IMAGE_PATH_MAX),
   tags: z.string().trim().max(80).optional(),
 });
 
@@ -466,7 +466,7 @@ export const updateListingPhoto = createServerFn({ method: "POST" })
   .validator(
     z.object({
       listingId: z.number().int().positive(),
-      imagePath: z.string().min(1).max(160),
+      imagePath: z.string().min(1).max(USER_IMAGE_PATH_MAX),
     }),
   )
   .middleware([authMiddleware])

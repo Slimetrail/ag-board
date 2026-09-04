@@ -4,6 +4,7 @@ import { isAllowedAvatar } from "@/lib/avatar";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { slugify } from "@/lib/catalog";
 import { getSql } from "@/lib/db";
+import { USER_IMAGE_PATH_MAX } from "@/lib/upload-path";
 
 export type PublicProfile = {
   userId: string;
@@ -242,7 +243,7 @@ export const getOwnProfile = createServerFn({ method: "POST" })
 const updateInput = z.object({
   username: USERNAME,
   realName: z.string().trim().min(2).max(40),
-  imagePath: z.string().max(300),
+  imagePath: z.string().max(USER_IMAGE_PATH_MAX),
   county: z.string().trim().max(40),
   email: z.string().trim().email().max(120).or(z.literal("")),
   phone: z.string().trim().max(40),
