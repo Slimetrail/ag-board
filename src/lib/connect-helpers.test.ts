@@ -1,11 +1,15 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  bookmarkToast,
   canSubmitRating,
+  interestedButtonLabel,
   looksLikeContactPii,
   pairUserIds,
   roundRatingAverage,
   shouldRevealPersonal,
+  shouldShowInterested,
+  shouldShowInviteRespond,
   summarizeRatings,
 } from "./connect-helpers.ts";
 
@@ -47,5 +51,39 @@ describe("ratings", () => {
     assert.deepEqual(summarizeRatings([5, 4, 4]), { average: 4.3, count: 3 });
     assert.equal(roundRatingAverage("4.25"), 4.3);
     assert.equal(roundRatingAverage(null), null);
+  });
+});
+
+describe("connect flow actions", () => {
+  it("shows Accept/Deny only for an incoming request", () => {
+    assert.equal(shouldShowInviteRespond("pending-in"), true);
+    assert.equal(shouldShowInviteRespond("pending-out"), false);
+    assert.equal(shouldShowInviteRespond("none"), false);
+    assert.equal(shouldShowInviteRespond("connected"), false);
+  });
+
+  it("lets a listing viewer mark Interested without mixing in Accept/Deny", () => {
+    assert.equal(shouldShowInterested("none"), true);
+    assert.equal(shouldShowInterested("pending-out"), true);
+    assert.equal(shouldShowInterested("pending-in"), false);
+    assert.equal(shouldShowInterested("connected"), false);
+    assert.equal(shouldShowInterested("self"), false);
+  });
+
+  it("labels Interested as a request, not a bookmark", () => {
+    assert.equal(interestedButtonLabel("none", false), "Interested");
+    assert.equal(interestedButtonLabel("pending-out", false), "Interested — waiting on Accept");
+    assert.equal(interestedButtonLabel("none", true), "Sending…");
+  });
+
+  it("keeps favorite toasts on-device only", () => {
+    assert.deepEqual(bookmarkToast(true, "Hay"), {
+      title: "Favorited — bookmark only",
+      description: "Hay — they were not notified.",
+    });
+    assert.deepEqual(bookmarkToast(false, "Hay"), {
+      title: "Removed from favorites",
+      description: "Hay",
+    });
   });
 });
