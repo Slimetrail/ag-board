@@ -6,9 +6,12 @@ import {
   PHOTO_SOURCE_MAX_BYTES,
 } from "./photo-limits.ts";
 import {
+  PHOTO_FRAME_MATTE,
   clampPhotoFrame,
+  cropExtendsOutside,
   cropRect,
   integerCrop,
+  photoFrameDrawCommands,
   type PhotoFrame,
 } from "./photo-frame.ts";
 
@@ -172,29 +175,42 @@ export async function fileToFramedJpegDataUrl(
 ): Promise<string> {
   const bitmap = await bitmapFromPhotoFile(file);
   try {
-    const rect = integerCrop(
+    const raw = cropRect(
       bitmap.width,
       bitmap.height,
-      cropRect(
-        bitmap.width,
-        bitmap.height,
-        aspect,
-        clampPhotoFrame(bitmap.width, bitmap.height, aspect, frame),
-      ),
+      aspect,
+      clampPhotoFrame(bitmap.width, bitmap.height, aspect, frame),
     );
+    const rect = cropExtendsOutside(bitmap.width, bitmap.height, raw)
+      ? raw
+      : integerCrop(bitmap.width, bitmap.height, raw);
     return jpegUnderCap(
-      (ctx, width, height) =>
-        ctx.drawImage(
-          bitmap,
-          rect.x,
-          rect.y,
-          rect.width,
-          rect.height,
-          0,
-          0,
+      (ctx, width, height) => {
+        const draw = photoFrameDrawCommands(
+          bitmap.width,
+          bitmap.height,
+          rect,
           width,
           height,
-        ),
+        );
+        if (draw.needsMatte) {
+          ctx.fillStyle = PHOTO_FRAME_MATTE;
+          ctx.fillRect(0, 0, width, height);
+        }
+        if (draw.sw >= 1 && draw.sh >= 1) {
+          ctx.drawImage(
+            bitmap,
+            draw.sx,
+            draw.sy,
+            draw.sw,
+            draw.sh,
+            draw.dx,
+            draw.dy,
+            draw.dw,
+            draw.dh,
+          );
+        }
+      },
       rect.width,
       rect.height,
     );

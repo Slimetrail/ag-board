@@ -11,10 +11,10 @@ import { Button } from "@/components/ui/button";
 import {
   PHOTO_FRAME_ASPECT,
   PHOTO_FRAME_MAX_ZOOM,
-  PHOTO_FRAME_MIN_ZOOM,
   clampPhotoFrame,
   cropRect,
   defaultPhotoFrame,
+  minPhotoZoom,
   panPhotoFrame,
   photoFrameImageStyle,
   zoomPhotoFrame,
@@ -263,7 +263,10 @@ export function PhotoFrameAdjuster({
       aspect,
       clampPhotoFrame(imageSize.width, imageSize.height, aspect, frame),
     );
-  const canZoomOut = frame.zoom > PHOTO_FRAME_MIN_ZOOM + 0.001;
+  const minZoom = imageSize
+    ? minPhotoZoom(imageSize.width, imageSize.height, aspect)
+    : 1;
+  const canZoomOut = frame.zoom > minZoom + 0.001;
   const canZoomIn = frame.zoom < PHOTO_FRAME_MAX_ZOOM - 0.001;
   const message = error || loadError;
 
@@ -284,7 +287,8 @@ export function PhotoFrameAdjuster({
           Adjust the photo
         </h2>
         <p className="mt-1 text-sm leading-relaxed text-muted">
-          Pinch or scroll to zoom. Drag so the important part fills the frame.
+          Pinch or scroll to zoom. Zoom out to fit the whole photo, or drag so
+          the part you want sits in the frame.
         </p>
 
         <div
