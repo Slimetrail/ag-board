@@ -281,8 +281,9 @@ function PostPage() {
             />
           </div>
           <p className="text-sm text-muted">
-            Your real name, address, phone, and email stay on your profile.
-            Neighbors only see them after you press Accept request.
+            Your real name, address, phone, and email stay on your profile —
+            only you see them. After someone accepts, talk in a private
+            message thread. Keep contact details out of this public listing.
           </p>
           <Field
             label="Tags (optional)"

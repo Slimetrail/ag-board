@@ -83,6 +83,17 @@ export function SiteShell({ children }: { children: ReactNode }) {
               <>
                 <InviteBadge className="ml-1" />
                 <Link
+                  to="/messages"
+                  className={cn(
+                    "rounded-md px-3 py-2 text-sm font-medium",
+                    pathname === "/messages"
+                      ? "bg-wash text-fg"
+                      : "text-muted hover:bg-wash hover:text-fg",
+                  )}
+                >
+                  Messages
+                </Link>
+                <Link
                   to="/profile"
                   className={cn(
                     "rounded-md px-3 py-2 text-sm font-medium",
@@ -142,6 +153,13 @@ export function SiteShell({ children }: { children: ReactNode }) {
               {user ? (
                 <>
                   <InviteBadge className="px-3 py-3 text-base" onClick={() => setOpen(false)} />
+                  <Link
+                    to="/messages"
+                    onClick={() => setOpen(false)}
+                    className="rounded-md px-3 py-3 text-base font-medium text-fg hover:bg-wash"
+                  >
+                    Messages
+                  </Link>
                   <Link
                     to="/profile"
                     onClick={() => setOpen(false)}

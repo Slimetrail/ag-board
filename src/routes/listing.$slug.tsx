@@ -141,7 +141,8 @@ function ListingPage() {
                 )}
                 <br />
                 <span className="text-subtle">
-                  Address hidden until they accept a request
+                  Street address stays off the listing. After you connect,
+                  arrange pickup in private messages.
                 </span>
               </span>
             </p>
@@ -181,8 +182,8 @@ function ListingPage() {
           <div className="mt-5 rounded-xl bg-surface p-5 shadow-[var(--shadow-card)] sm:p-6">
             <h2 className="font-display text-2xl">Leave a note</h2>
             <p className="mt-2 text-sm leading-relaxed text-muted">
-              Public note — no real name, address, phone, or email. Those only
-              open after they press Accept request.
+              Public note — do not put a real name, address, phone, or email.
+              After you connect, use the private message thread.
             </p>
             <NoteForm listingId={listing.id} />
             <div className="mt-8 space-y-4">

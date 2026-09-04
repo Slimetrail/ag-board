@@ -13,6 +13,7 @@ import {
 } from "@/lib/catalog";
 import { resolveCategoryCover } from "@/lib/category-cover";
 import { SEED_LISTINGS, SEED_NOTES } from "@/lib/seed-data";
+import { looksLikeContactPii } from "@/lib/connect-helpers";
 import { isCountyInState, placeLabel } from "@/lib/geo";
 import { isUserUploadPath, USER_IMAGE_PATH_MAX } from "@/lib/upload-path";
 
@@ -459,6 +460,11 @@ export const addBoardNote = createServerFn({ method: "POST" })
   .validator(noteInput)
   .middleware([authMiddleware])
   .handler(async ({ data }) => {
+    if (looksLikeContactPii(data.body)) {
+      throw new Error(
+        "Keep phone numbers and emails out of public notes. After you connect, use the private message thread.",
+      );
+    }
     const sql = await getSql();
     await sql.query(
       `insert into board_notes (listing_id, farm_name, body) values ($1, $2, $3)`,

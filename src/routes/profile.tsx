@@ -69,7 +69,8 @@ function ProfileEditor() {
       <h1 className="mt-2 font-display text-4xl sm:text-5xl">Profile</h1>
       <p className="mt-3 max-w-xl text-base leading-relaxed text-muted">
         Username and picture are public. Real name, address, phone, and email
-        stay hidden until you press Accept request.
+        stay on this page for you. Neighbors talk through private messages
+        after you accept.
       </p>
 
       <form
@@ -150,11 +151,11 @@ function ProfileEditor() {
 
         <div className="rounded-xl border border-border bg-wash/50 p-5">
           <p className="text-[13px] font-medium tracking-wide text-muted uppercase">
-            Hidden until you press Accept request
+            Private — only you see these
           </p>
           <p className="mt-1 mb-5 text-sm text-subtle">
-            Real name, address, phone, and email. Neighbors cannot see these
-            until you accept.
+            Real name, address, phone, and email. Neighbors do not see these.
+            After you accept, they message you in the app.
           </p>
           <div className="grid gap-5">
             <div className="grid gap-5 sm:grid-cols-2">
@@ -203,7 +204,7 @@ function ProfileEditor() {
                   onChange={(event) =>
                     setProfile({ ...profile, place: event.target.value })
                   }
-                  placeholder="Hidden until you accept a request"
+                  placeholder="Only you see this"
                 />
               </div>
               <div className="grid gap-1.5">
