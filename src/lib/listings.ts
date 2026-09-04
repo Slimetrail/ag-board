@@ -301,18 +301,21 @@ export const categoryCounts = createServerFn({ method: "POST" }).handler(
       const rows = await sql.query<{
         category: string;
         count: number;
-        cover_image: string | null;
+        cover_images: string[] | null;
       }>(
         `select
            category,
            count(*)::int as count,
-           (array_agg(image_path order by created_at desc)
-             filter (where image_path <> '' and image_path not like '/images/%'))[1]
-             as cover_image
+           coalesce(
+             array_agg(image_path order by created_at desc)
+               filter (where image_path <> '' and image_path not like '/images/%'),
+             '{}'
+           ) as cover_images
          from listings
          where available = true
          group by category`,
       );
+      const now = new Date();
       return rows.map((row): CategoryCount => {
         const category = row.category as Category;
         return {
@@ -320,7 +323,9 @@ export const categoryCounts = createServerFn({ method: "POST" }).handler(
           count: row.count,
           coverImage: resolveCategoryCover(
             CATEGORY_META[category].image,
-            row.cover_image ? [row.cover_image] : [],
+            row.cover_images ?? [],
+            now,
+            category,
           ),
         };
       });
