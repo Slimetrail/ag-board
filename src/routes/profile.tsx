@@ -340,6 +340,7 @@ function ProfilePhotoField({
         <FarmAvatar name={name} src={imagePath} className="size-20" />
         <div className="min-w-0 flex-1 grid gap-2 sm:max-w-sm">
           <PhotoUploadButton
+            frame="avatar"
             onUploaded={onChange}
             cameraLabel={custom ? "Take a new photo" : "Take a photo"}
             fileLabel={custom ? "Replace from files" : "Choose a file"}

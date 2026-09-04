@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState, type MouseEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
+import { PhotoFrameAdjuster } from "@/components/photo-frame-adjuster";
 import {
   assertJpegUnderCap,
-  fileToJpegDataUrl,
+  assertPhotoFile,
+  fileToFramedJpegDataUrl,
   PHOTO_SIZE_HINT,
   photoUserError,
 } from "@/lib/image-file";
+import { PHOTO_FRAME_ASPECT, type PhotoFrame, type PhotoFrameKind } from "@/lib/photo-frame";
 import { uploadListingPhoto } from "@/lib/uploads";
 import { cn } from "@/lib/utils";
 
@@ -51,32 +54,66 @@ export function PhotoUploadButton({
   cameraLabel = "Take a photo",
   fileLabel = "Choose a file",
   className,
+  frame = "listing",
 }: {
   onUploaded: (path: string) => void;
   disabled?: boolean;
   cameraLabel?: string;
   fileLabel?: string;
   className?: string;
+  frame?: PhotoFrameKind;
 }) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const uploadGen = useRef(0);
   const [mounted, setMounted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [adjustFile, setAdjustFile] = useState<File | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   function handleFile(file: File) {
+    setError(null);
+    try {
+      assertPhotoFile(file);
+    } catch (err: unknown) {
+      setError(photoUserError(err));
+      return;
+    }
+    setAdjustFile(file);
+  }
+
+  function cancelAdjust() {
+    uploadGen.current += 1;
+    setAdjustFile(null);
+    setBusy(false);
+    setError(null);
+  }
+
+  function confirmAdjust(next: PhotoFrame) {
+    const file = adjustFile;
+    if (!file) return;
+    const gen = ++uploadGen.current;
     setBusy(true);
     setError(null);
-    void fileToJpegDataUrl(file)
+    void fileToFramedJpegDataUrl(file, PHOTO_FRAME_ASPECT[frame], next)
       .then((dataUrl) => assertJpegUnderCap(dataUrl))
       .then((dataUrl) => uploadListingPhoto({ data: { dataUrl } }))
-      .then((result) => onUploaded(result.path))
-      .catch((err: unknown) => setError(photoUserError(err)))
-      .finally(() => setBusy(false));
+      .then((result) => {
+        if (gen !== uploadGen.current) return;
+        setAdjustFile(null);
+        onUploaded(result.path);
+      })
+      .catch((err: unknown) => {
+        if (gen !== uploadGen.current) return;
+        setError(photoUserError(err));
+      })
+      .finally(() => {
+        if (gen === uploadGen.current) setBusy(false);
+      });
   }
 
   function openPicker(
@@ -93,12 +130,12 @@ export function PhotoUploadButton({
       <HiddenFileInput
         inputRef={cameraRef}
         capture="environment"
-        disabled={busy || disabled}
+        disabled={busy || disabled || Boolean(adjustFile)}
         onFile={handleFile}
       />
       <HiddenFileInput
         inputRef={fileRef}
-        disabled={busy || disabled}
+        disabled={busy || disabled || Boolean(adjustFile)}
         onFile={handleFile}
       />
     </>
@@ -110,32 +147,42 @@ export function PhotoUploadButton({
       <div className="grid gap-2">
         <button
           type="button"
-          disabled={busy || disabled}
+          disabled={busy || disabled || Boolean(adjustFile)}
           onClick={(event) => openPicker(event, cameraRef.current)}
           className={cn(
             "flex min-h-11 items-center justify-center rounded-lg border border-dashed border-border bg-wash/60 px-4 py-3 text-sm font-medium hover:bg-wash",
-            (busy || disabled) && "pointer-events-none opacity-60",
+            (busy || disabled || adjustFile) && "pointer-events-none opacity-60",
           )}
         >
           {busy ? "Saving photo…" : cameraLabel}
         </button>
         <button
           type="button"
-          disabled={busy || disabled}
+          disabled={busy || disabled || Boolean(adjustFile)}
           onClick={(event) => openPicker(event, fileRef.current)}
           className={cn(
             "flex min-h-11 items-center justify-center rounded-lg border border-border bg-surface px-4 py-3 text-sm font-medium shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-card-hover)]",
-            (busy || disabled) && "pointer-events-none opacity-60",
+            (busy || disabled || adjustFile) && "pointer-events-none opacity-60",
           )}
         >
           {busy ? "Saving photo…" : fileLabel}
         </button>
       </div>
       <p className="mt-2 text-sm text-subtle">{PHOTO_SIZE_HINT}</p>
-      {error ? (
+      {error && !adjustFile ? (
         <p className="mt-2 text-sm text-fg" role="alert">
           {error}
         </p>
+      ) : null}
+      {adjustFile ? (
+        <PhotoFrameAdjuster
+          file={adjustFile}
+          frameKind={frame}
+          busy={busy}
+          error={error}
+          onCancel={cancelAdjust}
+          onConfirm={confirmAdjust}
+        />
       ) : null}
     </div>
   );
@@ -146,11 +193,13 @@ export function PhotoPicker({
   onChange,
   hint,
   legend = "Photo of the thing",
+  frame = "listing",
 }: {
   value: string;
   onChange: (path: string) => void;
   hint: string;
   legend?: string;
+  frame?: PhotoFrameKind;
 }) {
   return (
     <fieldset>
@@ -160,6 +209,7 @@ export function PhotoPicker({
       <p className="mt-1 mb-3 text-sm text-subtle">{hint}</p>
 
       <PhotoUploadButton
+        frame={frame}
         onUploaded={onChange}
         cameraLabel={value ? "Take a new photo" : "Take a photo"}
         fileLabel={value ? "Replace from files" : "Choose a file"}
