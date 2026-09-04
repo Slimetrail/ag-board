@@ -1,6 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { dataUrlByteLength, nextJpegSettings } from "./image-file.ts";
+import {
+  assertJpegUnderCap,
+  dataUrlByteLength,
+  nextJpegSettings,
+  photoUserError,
+  pickDecodeResize,
+} from "./image-file.ts";
 import {
   PHOTO_MAX_BYTES,
   PHOTO_MAX_LABEL,
@@ -43,5 +49,28 @@ describe("nextJpegSettings", () => {
       quality: 0.72,
     });
     assert.equal(nextJpegSettings(PHOTO_MIN_EDGE, 0.55), null);
+  });
+});
+
+describe("pickDecodeResize", () => {
+  it("caps the long edge so gallery shots are not decoded at full size", () => {
+    assert.deepEqual(pickDecodeResize(4032, 3024, 2048), { resizeWidth: 2048 });
+    assert.deepEqual(pickDecodeResize(3024, 4032, 2048), { resizeHeight: 2048 });
+  });
+});
+
+describe("photoUserError", () => {
+  it("does not send a 401 upload failure to the login screen", () => {
+    assert.match(
+      photoUserError(new Error("Unauthorized")),
+      /still signed in/i,
+    );
+  });
+});
+
+describe("assertJpegUnderCap", () => {
+  it("rejects a data URL over the 3 MB cap", () => {
+    const over = `data:image/jpeg;base64,${"A".repeat(4_200_000)}`;
+    assert.throws(() => assertJpegUnderCap(over), /3 MB/);
   });
 });

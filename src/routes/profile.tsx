@@ -76,6 +76,7 @@ function ProfileEditor() {
         className="mt-10 grid gap-8"
         onSubmit={(event) => {
           event.preventDefault();
+          event.stopPropagation();
           setPending(true);
           setError(null);
           setSuggestions([]);

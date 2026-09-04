@@ -1,48 +1,47 @@
-import { useState } from "react";
-import { fileToJpegDataUrl, PHOTO_MAX_LABEL, PHOTO_SIZE_HINT } from "@/lib/image-file";
+import { useEffect, useRef, useState, type MouseEvent, type RefObject } from "react";
+import { createPortal } from "react-dom";
+import {
+  assertJpegUnderCap,
+  fileToJpegDataUrl,
+  PHOTO_SIZE_HINT,
+  photoUserError,
+} from "@/lib/image-file";
 import { uploadListingPhoto } from "@/lib/uploads";
 import { cn } from "@/lib/utils";
 
-function photoErrorMessage(err: unknown): string {
-  if (err instanceof Error && err.message) return err.message;
-  return `Could not use that photo. Try a JPEG or PNG under ${PHOTO_MAX_LABEL}.`;
-}
+/** No matching form — keeps the input out of profile/post <form> submit. */
+const ORPHAN_FORM = "__ag_photo_orphan";
 
-function PhotoFileTrigger({
+function HiddenFileInput({
+  inputRef,
   capture,
-  label,
   disabled,
   onFile,
 }: {
+  inputRef: RefObject<HTMLInputElement | null>;
   capture?: "environment";
-  label: string;
   disabled?: boolean;
   onFile: (file: File) => void;
 }) {
   return (
-    <label
-      className={cn(
-        "flex min-h-11 cursor-pointer items-center justify-center rounded-lg px-4 py-3 text-sm font-medium",
-        capture
-          ? "border border-dashed border-border bg-wash/60 hover:bg-wash"
-          : "border border-border bg-surface shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-card-hover)]",
-        disabled && "pointer-events-none opacity-60",
-      )}
-    >
-      <input
-        type="file"
-        accept="image/*"
-        {...(capture ? { capture } : {})}
-        className="sr-only"
-        disabled={disabled}
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          event.target.value = "";
-          if (file) onFile(file);
-        }}
-      />
-      {label}
-    </label>
+    <input
+      ref={inputRef}
+      type="file"
+      accept="image/*"
+      form={ORPHAN_FORM}
+      tabIndex={-1}
+      aria-hidden="true"
+      className="sr-only"
+      disabled={disabled}
+      {...(capture ? { capture } : {})}
+      onClick={(event) => event.stopPropagation()}
+      onChange={(event) => {
+        event.stopPropagation();
+        const file = event.target.files?.[0];
+        event.target.value = "";
+        if (file) onFile(file);
+      }}
+    />
   );
 }
 
@@ -59,33 +58,78 @@ export function PhotoUploadButton({
   fileLabel?: string;
   className?: string;
 }) {
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [mounted, setMounted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   function handleFile(file: File) {
     setBusy(true);
     setError(null);
     void fileToJpegDataUrl(file)
+      .then((dataUrl) => assertJpegUnderCap(dataUrl))
       .then((dataUrl) => uploadListingPhoto({ data: { dataUrl } }))
       .then((result) => onUploaded(result.path))
-      .catch((err: unknown) => setError(photoErrorMessage(err)))
+      .catch((err: unknown) => setError(photoUserError(err)))
       .finally(() => setBusy(false));
   }
 
+  function openPicker(
+    event: MouseEvent<HTMLButtonElement>,
+    input: HTMLInputElement | null,
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    input?.click();
+  }
+
+  const inputs = (
+    <>
+      <HiddenFileInput
+        inputRef={cameraRef}
+        capture="environment"
+        disabled={busy || disabled}
+        onFile={handleFile}
+      />
+      <HiddenFileInput
+        inputRef={fileRef}
+        disabled={busy || disabled}
+        onFile={handleFile}
+      />
+    </>
+  );
+
   return (
     <div className={className}>
+      {mounted ? createPortal(inputs, document.body) : inputs}
       <div className="grid gap-2">
-        <PhotoFileTrigger
-          capture="environment"
-          label={busy ? "Saving photo…" : cameraLabel}
+        <button
+          type="button"
           disabled={busy || disabled}
-          onFile={handleFile}
-        />
-        <PhotoFileTrigger
-          label={busy ? "Saving photo…" : fileLabel}
+          onClick={(event) => openPicker(event, cameraRef.current)}
+          className={cn(
+            "flex min-h-11 items-center justify-center rounded-lg border border-dashed border-border bg-wash/60 px-4 py-3 text-sm font-medium hover:bg-wash",
+            (busy || disabled) && "pointer-events-none opacity-60",
+          )}
+        >
+          {busy ? "Saving photo…" : cameraLabel}
+        </button>
+        <button
+          type="button"
           disabled={busy || disabled}
-          onFile={handleFile}
-        />
+          onClick={(event) => openPicker(event, fileRef.current)}
+          className={cn(
+            "flex min-h-11 items-center justify-center rounded-lg border border-border bg-surface px-4 py-3 text-sm font-medium shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-card-hover)]",
+            (busy || disabled) && "pointer-events-none opacity-60",
+          )}
+        >
+          {busy ? "Saving photo…" : fileLabel}
+        </button>
       </div>
       <p className="mt-2 text-sm text-subtle">{PHOTO_SIZE_HINT}</p>
       {error ? (

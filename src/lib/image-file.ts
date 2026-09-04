@@ -12,6 +12,17 @@ export {
   PHOTO_SIZE_HINT,
 } from "./photo-limits.ts";
 
+/** Downscale at decode so a 12MP gallery shot never lands in memory at full size. */
+export function pickDecodeResize(
+  width: number,
+  height: number,
+  maxEdge: number,
+): { resizeWidth: number } | { resizeHeight: number } {
+  return width >= height
+    ? { resizeWidth: maxEdge }
+    : { resizeHeight: maxEdge };
+}
+
 export function dataUrlByteLength(dataUrl: string): number {
   const comma = dataUrl.indexOf(",");
   const b64 = (comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl).replace(/\s/g, "");
@@ -33,6 +44,40 @@ export function nextJpegSettings(
     };
   }
   return null;
+}
+
+export function photoUserError(err: unknown): string {
+  if (err instanceof Error && err.message === "Unauthorized") {
+    return "Could not save that photo. You are still signed in — try again.";
+  }
+  if (err instanceof Error && err.message) return err.message;
+  return `Could not use that photo. Try a JPEG or PNG under ${PHOTO_MAX_LABEL}.`;
+}
+
+export function assertJpegUnderCap(dataUrl: string): string {
+  if (dataUrlByteLength(dataUrl) > PHOTO_MAX_BYTES) {
+    throw new Error(
+      `Could not shrink that photo under ${PHOTO_MAX_LABEL}. Try another shot.`,
+    );
+  }
+  return dataUrl;
+}
+
+async function decodePhoto(file: File): Promise<ImageBitmap> {
+  try {
+    const probe = await createImageBitmap(file, {
+      resizeWidth: 96,
+      resizeQuality: "low",
+    });
+    const opts = pickDecodeResize(probe.width, probe.height, PHOTO_MAX_EDGE);
+    probe.close();
+    return await createImageBitmap(file, {
+      ...opts,
+      resizeQuality: "medium",
+    });
+  } catch {
+    return createImageBitmap(file);
+  }
 }
 
 function encodeJpeg(bitmap: ImageBitmap, edge: number, quality: number): string {
@@ -63,7 +108,7 @@ export async function fileToJpegDataUrl(file: File): Promise<string> {
 
   let bitmap: ImageBitmap;
   try {
-    bitmap = await createImageBitmap(file);
+    bitmap = await decodePhoto(file);
   } catch {
     throw new Error("Could not read that photo. Try a JPEG or PNG.");
   }

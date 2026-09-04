@@ -107,6 +107,7 @@ function PostPage() {
         className="mt-10 grid gap-8"
         onSubmit={async (event) => {
           event.preventDefault();
+          event.stopPropagation();
           const form = event.currentTarget;
           const data = new FormData(form);
           setPending(true);
