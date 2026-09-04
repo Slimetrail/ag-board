@@ -151,17 +151,23 @@ function ListingPage() {
               Posted {timeAgo(listing.createdAt)}
             </p>
             <div className="mt-6">
-              <div className="flex flex-wrap gap-2">
+              <div
+                className={
+                  listing.userId && !canEdit
+                    ? "grid grid-cols-2 gap-2"
+                    : "grid gap-2"
+                }
+              >
                 <SaveButton
                   listingId={listing.id}
                   title={listing.title}
-                  className="min-w-[8.5rem] flex-1"
+                  className="w-full"
                 />
                 {listing.userId && !canEdit ? (
                   <InterestedButton
                     ownerUserId={listing.userId}
                     listingId={listing.id}
-                    className="min-w-[8.5rem] flex-1"
+                    className="w-full"
                   />
                 ) : null}
               </div>

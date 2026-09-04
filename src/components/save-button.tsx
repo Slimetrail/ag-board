@@ -37,7 +37,6 @@ export function SaveButton({
         toast(copy.title, { description: copy.description });
       }}
       aria-pressed={saved}
-      aria-label={saved ? "Remove favorite bookmark" : "Favorite this listing"}
     >
       <Bookmark className={cn("size-4", saved && "fill-current")} />
       {saved ? "Favorited" : "Favorite"}
