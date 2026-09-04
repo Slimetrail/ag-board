@@ -115,13 +115,13 @@ export function PhotoFrameAdjuster({
   }, [busy, onCancel]);
 
   useEffect(() => {
-    const node = viewportNode;
-    if (!node) return;
+    if (!viewportNode) return;
+    const frameEl: HTMLDivElement = viewportNode;
     function onWheel(event: WheelEvent) {
       event.preventDefault();
       const size = sizeRef.current;
       if (!size.width || busyRef.current) return;
-      const rect = node.getBoundingClientRect();
+      const rect = frameEl.getBoundingClientRect();
       const origin = {
         x: (event.clientX - rect.left) / rect.width,
         y: (event.clientY - rect.top) / rect.height,
@@ -131,8 +131,8 @@ export function PhotoFrameAdjuster({
         zoomPhotoFrame(size.width, size.height, aspect, current, current.zoom * factor, origin),
       );
     }
-    node.addEventListener("wheel", onWheel, { passive: false });
-    return () => node.removeEventListener("wheel", onWheel);
+    frameEl.addEventListener("wheel", onWheel, { passive: false });
+    return () => frameEl.removeEventListener("wheel", onWheel);
   }, [applyFrame, aspect, viewportNode]);
 
   function viewportOrigin(clientX: number, clientY: number) {
