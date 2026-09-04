@@ -1,0 +1,26 @@
+{
+  "name": "Ag See a Need Fill a Need",
+  "short_name": "Ag See a Need",
+  "description": "Free South Carolina farm board. Neighbors share skills, equipment, produce, livestock, and land leases, found by county.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#354033",
+  "theme_color": "#354033",
+  "icons": [
+    {
+      "src": "/__grok/icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/og.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any"
+    }
+  ]
+}
