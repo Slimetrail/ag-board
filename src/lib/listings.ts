@@ -4,11 +4,13 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import {
   CATEGORIES,
+  CATEGORY_META,
   DEAL_TYPES,
   slugify,
   type Category,
   type DealType,
 } from "@/lib/catalog";
+import { resolveCategoryCover } from "@/lib/category-cover";
 import { SEED_LISTINGS, SEED_NOTES } from "@/lib/seed-data";
 import { isCountyInState, placeLabel } from "@/lib/geo";
 import { isUserUploadPath } from "@/lib/upload-path";
@@ -48,6 +50,7 @@ export type BoardNote = {
 export type CategoryCount = {
   category: Category;
   count: number;
+  coverImage: string;
 };
 
 type ListingRow = {
@@ -295,16 +298,32 @@ export const categoryCounts = createServerFn({ method: "POST" }).handler(
       await ensureSeed();
       const sql = await getSql();
       await expireStaleDeciding(sql);
-      const rows = await sql.query<{ category: string; count: number }>(
-        `select category, count(*)::int as count from listings
-         where available = true group by category`,
+      const rows = await sql.query<{
+        category: string;
+        count: number;
+        cover_image: string | null;
+      }>(
+        `select
+           category,
+           count(*)::int as count,
+           (array_agg(image_path order by created_at desc)
+             filter (where image_path <> '' and image_path not like '/images/%'))[1]
+             as cover_image
+         from listings
+         where available = true
+         group by category`,
       );
-      return rows.map(
-        (row): CategoryCount => ({
-          category: row.category as Category,
+      return rows.map((row): CategoryCount => {
+        const category = row.category as Category;
+        return {
+          category,
           count: row.count,
-        }),
-      );
+          coverImage: resolveCategoryCover(
+            CATEGORY_META[category].image,
+            row.cover_image ? [row.cover_image] : [],
+          ),
+        };
+      });
     } catch {
       return [];
     }

@@ -37,8 +37,8 @@ export const Route = createFileRoute("/")({
 function Home() {
   const { featured, counts, shared, leases, needs } = Route.useLoaderData();
   const countMap = Object.fromEntries(
-    counts.map((row) => [row.category, row.count]),
-  ) as Record<string, number>;
+    counts.map((row) => [row.category, row]),
+  );
 
   return (
     <div>
@@ -114,7 +114,7 @@ function Home() {
               >
                 <div className="relative h-36 overflow-hidden">
                   <img
-                    src={meta.image}
+                    src={countMap[cat]?.coverImage ?? meta.image}
                     alt=""
                     className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
                   />
@@ -128,7 +128,7 @@ function Home() {
                     {meta.blurb}
                   </p>
                   <p className="mt-3 text-xs tabular-nums text-subtle">
-                    {countMap[cat] ?? 0} on the board
+                    {countMap[cat]?.count ?? 0} on the board
                   </p>
                 </div>
               </Link>
