@@ -5,7 +5,11 @@ export type PhotoFrame = {
   cx: number;
   /** Crop center, normalized 0–1 along image height. */
   cy: number;
-  /** 1 = cover-fit (largest crop). Higher zooms in. */
+  /**
+   * 1 = cover-fit (frame filled, image may be cropped).
+   * Lower values zoom out toward contain (whole image visible, letterbox OK).
+   * Higher values zoom in.
+   */
   zoom: number;
 };
 
@@ -16,17 +20,34 @@ export type PhotoCropRect = {
   height: number;
 };
 
+export type PhotoFrameDraw = {
+  sx: number;
+  sy: number;
+  sw: number;
+  sh: number;
+  dx: number;
+  dy: number;
+  dw: number;
+  dh: number;
+  /** True when the framed viewport includes area outside the bitmap. */
+  needsMatte: boolean;
+};
+
 /** Listing cards and the post preview use aspect-4/3 object-cover. */
 export const PHOTO_FRAME_ASPECT: Record<PhotoFrameKind, number> = {
   listing: 4 / 3,
   avatar: 1,
 };
 
-export const PHOTO_FRAME_MIN_ZOOM = 1;
+/** Cover-fit zoom: largest crop that still fills the frame. */
+export const PHOTO_FRAME_COVER_ZOOM = 1;
 export const PHOTO_FRAME_MAX_ZOOM = 4;
 
+/** Matches `--color-wash` so exported letterbox matches the adjuster. */
+export const PHOTO_FRAME_MATTE = "#cbb894";
+
 export function defaultPhotoFrame(): PhotoFrame {
-  return { cx: 0.5, cy: 0.5, zoom: PHOTO_FRAME_MIN_ZOOM };
+  return { cx: 0.5, cy: 0.5, zoom: PHOTO_FRAME_COVER_ZOOM };
 }
 
 export function clamp(value: number, min: number, max: number): number {
@@ -49,23 +70,58 @@ export function coverSize(
   return { width: imageWidth, height: imageWidth / aspect };
 }
 
+/** Smallest rectangle of `aspect` that contains the entire image (contain-fit). */
+export function containSize(
+  imageWidth: number,
+  imageHeight: number,
+  aspect: number,
+): { width: number; height: number } {
+  if (imageWidth <= 0 || imageHeight <= 0 || aspect <= 0) {
+    return { width: 1, height: 1 };
+  }
+  if (imageWidth / imageHeight > aspect) {
+    return { width: imageWidth, height: imageWidth / aspect };
+  }
+  return { width: imageHeight * aspect, height: imageHeight };
+}
+
+/** Zoom floor: entire image visible inside the frame (1 when aspects already match). */
+export function minPhotoZoom(
+  imageWidth: number,
+  imageHeight: number,
+  aspect: number,
+): number {
+  const cover = coverSize(imageWidth, imageHeight, aspect);
+  const contain = containSize(imageWidth, imageHeight, aspect);
+  return clamp(cover.width / contain.width, Number.EPSILON, PHOTO_FRAME_COVER_ZOOM);
+}
+
+function axisLimits(half: number): { min: number; max: number } {
+  return {
+    min: Math.min(half, 1 - half),
+    max: Math.max(half, 1 - half),
+  };
+}
+
 export function clampPhotoFrame(
   imageWidth: number,
   imageHeight: number,
   aspect: number,
   frame: PhotoFrame,
 ): PhotoFrame {
-  const zoom = clamp(frame.zoom, PHOTO_FRAME_MIN_ZOOM, PHOTO_FRAME_MAX_ZOOM);
+  const zoom = clamp(
+    frame.zoom,
+    minPhotoZoom(imageWidth, imageHeight, aspect),
+    PHOTO_FRAME_MAX_ZOOM,
+  );
   const cover = coverSize(imageWidth, imageHeight, aspect);
   const width = cover.width / zoom;
   const height = cover.height / zoom;
-  const minCx = width / 2 / imageWidth;
-  const maxCx = 1 - width / 2 / imageWidth;
-  const minCy = height / 2 / imageHeight;
-  const maxCy = 1 - height / 2 / imageHeight;
+  const x = axisLimits(width / 2 / imageWidth);
+  const y = axisLimits(height / 2 / imageHeight);
   return {
-    cx: clamp(frame.cx, minCx, maxCx),
-    cy: clamp(frame.cy, minCy, maxCy),
+    cx: clamp(frame.cx, x.min, x.max),
+    cy: clamp(frame.cy, y.min, y.max),
     zoom,
   };
 }
@@ -101,6 +157,53 @@ export function integerCrop(
     y: clamp(Math.round(rect.y), 0, imageHeight - height),
     width,
     height,
+  };
+}
+
+export function cropExtendsOutside(
+  imageWidth: number,
+  imageHeight: number,
+  rect: PhotoCropRect,
+): boolean {
+  return (
+    rect.x < -1e-6 ||
+    rect.y < -1e-6 ||
+    rect.x + rect.width > imageWidth + 1e-6 ||
+    rect.y + rect.height > imageHeight + 1e-6
+  );
+}
+
+/**
+ * Map the image∩crop intersection onto a canvas that represents `crop`.
+ * When the crop is larger than the image, dest sits inset (letterbox).
+ */
+export function photoFrameDrawCommands(
+  imageWidth: number,
+  imageHeight: number,
+  crop: PhotoCropRect,
+  canvasWidth: number,
+  canvasHeight: number,
+): PhotoFrameDraw {
+  const sx = Math.max(0, crop.x);
+  const sy = Math.max(0, crop.y);
+  const sr = Math.min(imageWidth, crop.x + crop.width);
+  const sb = Math.min(imageHeight, crop.y + crop.height);
+  const sw = Math.max(0, sr - sx);
+  const sh = Math.max(0, sb - sy);
+  const dx = crop.width === 0 ? 0 : ((sx - crop.x) / crop.width) * canvasWidth;
+  const dy = crop.height === 0 ? 0 : ((sy - crop.y) / crop.height) * canvasHeight;
+  const dw = crop.width === 0 ? 0 : (sw / crop.width) * canvasWidth;
+  const dh = crop.height === 0 ? 0 : (sh / crop.height) * canvasHeight;
+  return {
+    sx,
+    sy,
+    sw,
+    sh,
+    dx,
+    dy,
+    dw,
+    dh,
+    needsMatte: cropExtendsOutside(imageWidth, imageHeight, crop),
   };
 }
 

@@ -103,5 +103,7 @@ describe("framed JPEG encode", () => {
     assert.match(source, /jpegUnderCap/);
     assert.match(source, /PHOTO_MAX_BYTES/);
     assert.match(source, /cropRect/);
+    assert.match(source, /photoFrameDrawCommands/);
+    assert.match(source, /PHOTO_FRAME_MATTE/);
   });
 });
