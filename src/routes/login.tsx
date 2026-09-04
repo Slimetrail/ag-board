@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { Eye, EyeOff } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Wordmark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,8 @@ function Login() {
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -186,32 +189,30 @@ function Login() {
                     placeholder="you@farm.sc"
                   />
                 </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    required
-                    minLength={8}
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    autoComplete={mode === "up" ? "new-password" : "current-password"}
-                  />
-                </div>
+                <PasswordField
+                  id="password"
+                  label="Password"
+                  value={password}
+                  onChange={setPassword}
+                  autoComplete={mode === "up" ? "new-password" : "current-password"}
+                  visible={showPassword}
+                  onToggle={() => setShowPassword((open) => !open)}
+                  showLabel="Show password"
+                  hideLabel="Hide password"
+                />
                 {mode === "up" ? (
                   <>
-                    <div className="grid gap-1.5">
-                      <Label htmlFor="confirm">Confirm password</Label>
-                      <Input
-                        id="confirm"
-                        type="password"
-                        required
-                        minLength={8}
-                        value={confirm}
-                        onChange={(event) => setConfirm(event.target.value)}
-                        autoComplete="new-password"
-                      />
-                    </div>
+                    <PasswordField
+                      id="confirm"
+                      label="Confirm password"
+                      value={confirm}
+                      onChange={setConfirm}
+                      autoComplete="new-password"
+                      visible={showConfirm}
+                      onToggle={() => setShowConfirm((open) => !open)}
+                      showLabel="Show confirm password"
+                      hideLabel="Hide confirm password"
+                    />
                     <ul className="grid gap-1.5 text-sm">
                       {checks.map((item) => (
                         <li
@@ -288,5 +289,58 @@ function Login() {
         </div>
       </div>
     </main>
+  );
+}
+
+function PasswordField({
+  id,
+  label,
+  value,
+  onChange,
+  autoComplete,
+  visible,
+  onToggle,
+  showLabel,
+  hideLabel,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  autoComplete: string;
+  visible: boolean;
+  onToggle: () => void;
+  showLabel: string;
+  hideLabel: string;
+}) {
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <div className="relative">
+        <Input
+          id={id}
+          type={visible ? "text" : "password"}
+          required
+          minLength={8}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          autoComplete={autoComplete}
+          spellCheck={false}
+          className="pr-11"
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="absolute top-0 right-0 text-muted hover:bg-transparent hover:text-fg"
+          onClick={onToggle}
+          aria-label={visible ? hideLabel : showLabel}
+          aria-pressed={visible}
+          aria-controls={id}
+        >
+          {visible ? <EyeOff /> : <Eye />}
+        </Button>
+      </div>
+    </div>
   );
 }
