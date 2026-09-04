@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.slimetrail.agboard",
+        "sha256_cert_fingerprints": ["21:EB:89:74:11:35:14:B5:22:1A:19:67:40:B7:25:B2:19:0F:A9:51:8B:D3:91:8B:E3:4D:25:34:08:C8:CC:23"]
+      }
+    }]
