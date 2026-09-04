@@ -46,7 +46,7 @@ function copyFor(category: Category, dealType: DealType) {
       summary: "Looking for about 40 dry bales this week.",
       story:
         "What you need, when you need it, and what you can offer in return…",
-      photo: "A photo of what you need, or the closest example.",
+      photo: "A photo of what you need — take it on your phone or pick a file. No stock shots.",
       submit: "Post this need",
     };
   }
@@ -59,7 +59,7 @@ function copyFor(category: Category, dealType: DealType) {
       summary: "H-braces, woven wire, and a crew that shows up.",
       story:
         "What you do, how far you'll travel, day rate or trade, and what to bring…",
-      photo: "A photo of your work, or the tools you show up with.",
+      photo: "A photo of your work or tools — take it on your phone or pick a file. No stock shots.",
       submit: "Offer this skill",
     };
   }
@@ -71,7 +71,7 @@ function copyFor(category: Category, dealType: DealType) {
     summary: "Eighty dry bales left in the hay barn.",
     story:
       "When it was cut, how it was stored, what you want in return…",
-    photo: "A photo of what you're selling, trading, or giving away.",
+    photo: "A photo of the actual thing — take it on your phone or pick a file. No stock shots.",
     submit: "Put it on the board",
   };
 }
@@ -107,6 +107,7 @@ function PostPage() {
         className="mt-10 grid gap-8"
         onSubmit={async (event) => {
           event.preventDefault();
+          event.stopPropagation();
           const form = event.currentTarget;
           const data = new FormData(form);
           setPending(true);

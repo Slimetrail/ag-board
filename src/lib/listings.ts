@@ -5,7 +5,6 @@ import { getSql } from "@/lib/db";
 import {
   CATEGORIES,
   DEAL_TYPES,
-  LISTING_IMAGES,
   slugify,
   type Category,
   type DealType,
@@ -118,8 +117,6 @@ function mapNote(row: NoteRow): BoardNote {
     createdAt: row.created_at,
   };
 }
-
-const ALLOWED_IMAGES = new Set<string>(LISTING_IMAGES.map((img) => img.path));
 
 type SeedGlobal = typeof globalThis & {
   __acreSeedV6__?: Promise<void>;
@@ -380,8 +377,8 @@ export const createListing = createServerFn({ method: "POST" })
     if ((terms[0]?.n ?? 0) === 0) {
       throw new Error("Agree to the terms before you post.");
     }
-    if (!ALLOWED_IMAGES.has(data.imagePath) && !isUserUploadPath(data.imagePath)) {
-      throw new Error("Add a photo of what you're posting.");
+    if (!isUserUploadPath(data.imagePath)) {
+      throw new Error("Upload your own photo of what you're posting.");
     }
     const state = (data.state ?? "SC").toUpperCase();
     if (!isCountyInState(data.county, state)) {
@@ -441,6 +438,35 @@ export const addBoardNote = createServerFn({ method: "POST" })
       [data.listingId, data.farmName, data.body],
     );
     return { ok: true };
+  });
+
+export const updateListingPhoto = createServerFn({ method: "POST" })
+  .validator(
+    z.object({
+      listingId: z.number().int().positive(),
+      imagePath: z.string().min(1).max(160),
+    }),
+  )
+  .middleware([authMiddleware])
+  .handler(async ({ data, context }) => {
+    if (!isUserUploadPath(data.imagePath)) {
+      throw new Error("Upload your own photo of what you're posting.");
+    }
+    const sql = await getSql();
+    const rows = await sql.query<ListingRow>(
+      `select * from listings where id = $1 limit 1`,
+      [data.listingId],
+    );
+    const listing = rows[0];
+    if (!listing) throw new Error("That listing is gone.");
+    if (listing.user_id !== context.userId) {
+      throw new Error("You can't change that listing.");
+    }
+    const updated = await sql.query<ListingRow>(
+      `update listings set image_path = $1 where id = $2 returning *`,
+      [data.imagePath, data.listingId],
+    );
+    return mapListing(updated[0]!);
   });
 
 export const updateListingOffer = createServerFn({ method: "POST" })

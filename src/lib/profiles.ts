@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { isAllowedAvatar } from "@/lib/avatar";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { LISTING_IMAGES, slugify } from "@/lib/catalog";
+import { slugify } from "@/lib/catalog";
 import { getSql } from "@/lib/db";
 
 export type PublicProfile = {
@@ -85,17 +86,6 @@ function ownOf(row: ProfileRow): OwnProfile {
     ...personalOf(row),
     termsAccepted: Boolean(row.terms_accepted_at),
   };
-}
-
-function isAllowedAvatar(path: string) {
-  if (!path) return true;
-  if (LISTING_IMAGES.some((img) => img.path === path)) return true;
-  try {
-    const url = new URL(path);
-    return url.protocol === "https:";
-  } catch {
-    return false;
-  }
 }
 
 async function uniqueUsername(
@@ -265,7 +255,7 @@ export const updateOwnProfile = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context, data }) => {
     if (!isAllowedAvatar(data.imagePath)) {
-      throw new Error("Choose a photo from the library, or keep your sign-in picture.");
+      throw new Error("Upload your own photo, or use initials.");
     }
     const sql = await getSql();
     const taken = await sql.query<{ n: number }>(
