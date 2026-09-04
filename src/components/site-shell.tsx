@@ -11,19 +11,8 @@ import { Button } from "@/components/ui/button";
 import { UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { useBoardStore } from "@/lib/board-store";
+import { NAV, YOUR_LISTINGS_PATH, hamburgerNav } from "@/lib/nav";
 import { cn } from "@/lib/utils";
-
-const NAV = [
-  { to: "/market", label: "The board" },
-  { to: "/share", label: "Share" },
-  { to: "/needs", label: "Needs" },
-  { to: "/leases", label: "Leases" },
-  { to: "/skills", label: "Skills" },
-  { to: "/learn", label: "Learn" },
-  { to: "/about", label: "About" },
-  { to: "/improve", label: "Improve" },
-  { to: "/saved", label: "Pinned" },
-] as const;
 
 export function SiteShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -130,16 +119,23 @@ export function SiteShell({ children }: { children: ReactNode }) {
         {open ? (
           <div className="border-t border-border bg-bg px-4 py-3 lg:hidden">
             <nav className="flex flex-col gap-1">
-              {NAV.map((item) => (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  onClick={() => setOpen(false)}
-                  className="rounded-md px-3 py-3 text-base font-medium text-fg hover:bg-wash"
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {hamburgerNav().map((item) => {
+                const signedOutListings =
+                  item.to === YOUR_LISTINGS_PATH && !user && !isPending;
+                return (
+                  <Link
+                    key={item.to}
+                    to={signedOutListings ? "/login" : item.to}
+                    search={
+                      signedOutListings ? { next: YOUR_LISTINGS_PATH } : undefined
+                    }
+                    onClick={() => setOpen(false)}
+                    className="rounded-md px-3 py-3 text-base font-medium text-fg hover:bg-wash"
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
               <Button asChild className="mt-2">
                 <Link to="/post" onClick={() => setOpen(false)}>
                   Post a listing

@@ -648,6 +648,20 @@ export const listOwnDrafts = createServerFn({ method: "POST" })
     return rows.map(mapListing);
   });
 
+export const listOwnListings = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const sql = await getSql();
+    await ensureListingColumns(sql);
+    const rows = await sql.query<ListingRow>(
+      `select * from listings
+       where user_id = $1 and is_draft = false
+       order by available desc, created_at desc`,
+      [context.userId],
+    );
+    return rows.map(mapListing);
+  });
+
 export const getOwnDraft = createServerFn({ method: "POST" })
   .validator(z.object({ id: z.number().int().positive() }))
   .middleware([authMiddleware])

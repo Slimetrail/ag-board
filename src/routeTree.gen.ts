@@ -16,6 +16,7 @@ import { Route as ImproveRouteImport } from './routes/improve'
 import { Route as InvitesRouteImport } from './routes/invites'
 import { Route as LearnRouteImport } from './routes/learn'
 import { Route as LeasesRouteImport } from './routes/leases'
+import { Route as ListingsRouteImport } from './routes/listings'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MarketRouteImport } from './routes/market'
 import { Route as MessagesRouteImport } from './routes/messages'
@@ -64,6 +65,11 @@ const LearnRoute = LearnRouteImport.update({
 const LeasesRoute = LeasesRouteImport.update({
   id: '/leases',
   path: '/leases',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ListingsRoute = ListingsRouteImport.update({
+  id: '/listings',
+  path: '/listings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -145,6 +151,7 @@ export interface FileRoutesByFullPath {
   '/invites': typeof InvitesRoute
   '/learn': typeof LearnRouteWithChildren
   '/leases': typeof LeasesRoute
+  '/listings': typeof ListingsRoute
   '/login': typeof LoginRoute
   '/market': typeof MarketRoute
   '/messages': typeof MessagesRoute
@@ -168,6 +175,7 @@ export interface FileRoutesByTo {
   '/invites': typeof InvitesRoute
   '/learn': typeof LearnRouteWithChildren
   '/leases': typeof LeasesRoute
+  '/listings': typeof ListingsRoute
   '/login': typeof LoginRoute
   '/market': typeof MarketRoute
   '/messages': typeof MessagesRoute
@@ -192,6 +200,7 @@ export interface FileRoutesById {
   '/invites': typeof InvitesRoute
   '/learn': typeof LearnRouteWithChildren
   '/leases': typeof LeasesRoute
+  '/listings': typeof ListingsRoute
   '/login': typeof LoginRoute
   '/market': typeof MarketRoute
   '/messages': typeof MessagesRoute
@@ -217,6 +226,7 @@ export interface FileRouteTypes {
     | '/invites'
     | '/learn'
     | '/leases'
+    | '/listings'
     | '/login'
     | '/market'
     | '/messages'
@@ -240,6 +250,7 @@ export interface FileRouteTypes {
     | '/invites'
     | '/learn'
     | '/leases'
+    | '/listings'
     | '/login'
     | '/market'
     | '/messages'
@@ -263,6 +274,7 @@ export interface FileRouteTypes {
     | '/invites'
     | '/learn'
     | '/leases'
+    | '/listings'
     | '/login'
     | '/market'
     | '/messages'
@@ -287,6 +299,7 @@ export interface RootRouteChildren {
   InvitesRoute: typeof InvitesRoute
   LearnRoute: typeof LearnRouteWithChildren
   LeasesRoute: typeof LeasesRoute
+  ListingsRoute: typeof ListingsRoute
   LoginRoute: typeof LoginRoute
   MarketRoute: typeof MarketRoute
   MessagesRoute: typeof MessagesRoute
@@ -351,6 +364,13 @@ declare module '@tanstack/react-router' {
       path: '/leases'
       fullPath: '/leases'
       preLoaderRoute: typeof LeasesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/listings': {
+      id: '/listings'
+      path: '/listings'
+      fullPath: '/listings'
+      preLoaderRoute: typeof ListingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -472,6 +492,7 @@ const rootRouteChildren: RootRouteChildren = {
   InvitesRoute: InvitesRoute,
   LearnRoute: LearnRouteWithChildren,
   LeasesRoute: LeasesRoute,
+  ListingsRoute: ListingsRoute,
   LoginRoute: LoginRoute,
   MarketRoute: MarketRoute,
   MessagesRoute: MessagesRoute,

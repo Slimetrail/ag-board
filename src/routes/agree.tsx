@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Wordmark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
+import { safeReturnTo } from "@/lib/auth/return-to";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import {
   DISCLAIMER_BODY,
@@ -10,12 +11,21 @@ import {
 } from "@/lib/disclaimer";
 import { acceptTerms, ensureOwnProfile } from "@/lib/profiles";
 
+export type AgreeSearch = {
+  next?: string;
+};
+
 export const Route = createFileRoute("/agree")({
+  validateSearch: (search: Record<string, unknown>): AgreeSearch => {
+    const next = safeReturnTo(search.next);
+    return next ? { next } : {};
+  },
   component: AgreePage,
 });
 
 function AgreePage() {
   const navigate = useNavigate();
+  const { next } = Route.useSearch();
   const { user, isPending } = useCurrentUserState();
   const [agreed, setAgreed] = useState(false);
   const [pending, setPending] = useState(false);
@@ -25,10 +35,12 @@ function AgreePage() {
     if (!user) return;
     void ensureOwnProfile()
       .then((profile) => {
-        if (profile.termsAccepted) void navigate({ to: "/" });
+        if (profile.termsAccepted) {
+          void navigate({ to: (next ?? "/") as "/" });
+        }
       })
       .catch(() => undefined);
-  }, [user, navigate]);
+  }, [user, navigate, next]);
 
   if (isPending) {
     return (
@@ -94,7 +106,7 @@ function AgreePage() {
               setError(null);
               void ensureOwnProfile()
                 .then(() => acceptTerms())
-                .then(() => navigate({ to: "/" }))
+                .then(() => navigate({ to: (next ?? "/") as "/" }))
                 .catch((err: unknown) => {
                   setError(
                     err instanceof Error ? err.message : "Could not save your agreement.",

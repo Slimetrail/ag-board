@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Eye, EyeOff } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Wordmark } from "@/components/brand-mark";
+import { afterAuthPath, safeReturnTo } from "@/lib/auth/return-to";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +19,15 @@ import {
 import { passwordChecks, passwordError } from "@/lib/password";
 import { cn } from "@/lib/utils";
 
+export type LoginSearch = {
+  next?: string;
+};
+
 export const Route = createFileRoute("/login")({
+  validateSearch: (search: Record<string, unknown>): LoginSearch => {
+    const next = safeReturnTo(search.next);
+    return next ? { next } : {};
+  },
   component: Login,
 });
 
@@ -35,6 +44,8 @@ function keepSessionToken(token: string | null | undefined) {
 
 function Login() {
   const navigate = useNavigate();
+  const { next } = Route.useSearch();
+  const afterAuth = afterAuthPath(next);
   const [mode, setMode] = useState<"in" | "up">("in");
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
@@ -104,7 +115,10 @@ function Login() {
       } catch {
         /* session store will pick it up */
       }
-      await navigate({ to: "/agree" });
+      await navigate({
+        to: "/agree",
+        search: next ? { next } : {},
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not sign in.");
     } finally {
@@ -115,7 +129,7 @@ function Login() {
   function onProvider(providerId: string) {
     setError(null);
     setPending(true);
-    void signIn(providerId, { callbackURL: "/agree" })
+    void signIn(providerId, { callbackURL: afterAuth })
       .catch((err: unknown) => {
         const message =
           err instanceof Error ? err.message : "That sign-in didn't finish.";
