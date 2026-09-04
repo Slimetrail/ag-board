@@ -34,7 +34,7 @@ export function ListingPhotoEditor({
     <div className="mt-4 grid gap-3">
       <PhotoPicker
         value={imagePath}
-        hint="A photo of the actual thing — your own picture, not a stock shot."
+        hint="A photo of the actual thing — take it on your phone or pick a file. No stock shots."
         onChange={(path) => {
           setPending(true);
           void updateListingPhoto({

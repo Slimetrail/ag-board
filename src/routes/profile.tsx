@@ -323,15 +323,16 @@ function ProfilePhotoField({
         Picture (public)
       </legend>
       <p className="mt-1 mb-3 text-sm text-subtle">
-        Upload your own photo, or show initials from your username. No stock
-        pictures.
+        Upload your own photo, or show initials from your username. On a phone,
+        the camera opens first; you can still pick a file. No stock pictures.
       </p>
       <div className="flex flex-wrap items-center gap-4">
         <FarmAvatar name={name} src={imagePath} className="size-20" />
         <div className="min-w-0 flex-1 grid gap-2 sm:max-w-sm">
           <PhotoUploadButton
             onUploaded={onChange}
-            label={custom ? "Replace with your photo" : "Upload your photo"}
+            cameraLabel={custom ? "Take a new photo" : "Take a photo"}
+            fileLabel={custom ? "Replace from files" : "Choose a file"}
           />
           <Button
             type="button"
