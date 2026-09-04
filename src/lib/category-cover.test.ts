@@ -19,6 +19,12 @@ describe("isStockCatalogImage", () => {
       isStockCatalogImage("/uploads/2f1c8e0a-9b3d-4c11-8a7e-0d1f2a3b4c5d.jpg"),
       false,
     );
+    assert.equal(
+      isStockCatalogImage(
+        "https://abc123xyz.public.blob.vercel-storage.com/uploads/2f1c8e0a-9b3d-4c11-8a7e-0d1f2a3b4c5d.jpg",
+      ),
+      false,
+    );
   });
 });
 

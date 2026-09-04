@@ -29,6 +29,12 @@ describe("avatarInitials", () => {
 describe("photo path rules", () => {
   it("accepts user uploads and https sign-in photos", () => {
     assert.equal(isCustomPhotoPath("/uploads/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg"), true);
+    assert.equal(
+      isCustomPhotoPath(
+        "https://abc123xyz.public.blob.vercel-storage.com/uploads/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg",
+      ),
+      true,
+    );
     assert.equal(isRemotePhotoUrl("https://lh3.googleusercontent.com/a/photo"), true);
     assert.equal(isAllowedAvatar(""), true);
     assert.equal(isAllowedAvatar("/uploads/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg"), true);
