@@ -1,5 +1,5 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, type ComponentProps } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState, type ComponentProps } from "react";
 import { toast } from "sonner";
 import { CountySelect } from "@/components/county-select";
 import { PhotoPicker } from "@/components/photo-picker";
@@ -17,19 +17,35 @@ import {
   type Category,
   type DealType,
 } from "@/lib/catalog";
-import { createListing } from "@/lib/listings";
-import { ensureOwnProfile } from "@/lib/profiles";
 import { isCountyInState } from "@/lib/geo";
+import {
+  EMPTY_LISTING_FORM,
+  isListingFormDirty,
+  listingFormFromListing,
+  type ListingFormState,
+} from "@/lib/listing-draft";
+import { createListing, getOwnDraft, saveListingDraft } from "@/lib/listings";
+import { ensureOwnProfile } from "@/lib/profiles";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/post")({
   validateSearch: (search: Record<string, unknown>) => {
-    const next: { cat?: Category; deal?: DealType } = {};
+    const next: { cat?: Category; deal?: DealType; draft?: number } = {};
     if (CATEGORIES.includes(search.cat as Category)) {
       next.cat = search.cat as Category;
     }
     if (DEAL_TYPES.includes(search.deal as DealType)) {
       next.deal = search.deal as DealType;
+    }
+    const draftRaw = search.draft;
+    const draft =
+      typeof draftRaw === "number"
+        ? draftRaw
+        : typeof draftRaw === "string" && /^\d+$/.test(draftRaw)
+          ? Number(draftRaw)
+          : NaN;
+    if (Number.isInteger(draft) && draft > 0) {
+      next.draft = draft;
     }
     return next;
   },
@@ -76,74 +92,180 @@ function copyFor(category: Category, dealType: DealType) {
   };
 }
 
+function freshForm(
+  search: { cat?: Category; deal?: DealType },
+  homeCounty: string,
+  homeState: string,
+): ListingFormState {
+  return {
+    ...EMPTY_LISTING_FORM,
+    category: search.cat ?? "materials",
+    dealType: search.deal ?? "sale",
+    county: homeCounty,
+    state: homeState || "SC",
+  };
+}
+
 function PostPage() {
+  return (
+    <RequireUse reason="Posting a listing takes an account — and you agree the app is not a party to the deal.">
+      <PostForm />
+    </RequireUse>
+  );
+}
+
+function PostForm() {
   const navigate = useNavigate();
   const search = Route.useSearch();
   const homeCounty = useBoardStore((s) => s.homeCounty);
   const homeState = useBoardStore((s) => s.homeState);
   const setHomeCounty = useBoardStore((s) => s.setHomeCounty);
   const markPosted = useBoardStore((s) => s.markPosted);
-  const [pending, setPending] = useState(false);
-  const [category, setCategory] = useState<Category>(search.cat ?? "materials");
-  const [dealType, setDealType] = useState<DealType>(search.deal ?? "sale");
-  const [county, setCounty] = useState(homeCounty);
-  const [state, setState] = useState(homeState || "SC");
-  const [imagePath, setImagePath] = useState<string>("");
+  const setListingForm = useBoardStore((s) => s.setListingForm);
+  const clearListingForm = useBoardStore((s) => s.clearListingForm);
+  const [form, setForm] = useState<ListingFormState>(() =>
+    freshForm(search, homeCounty, homeState),
+  );
+  const [ready, setReady] = useState(false);
+  const [pending, setPending] = useState<"publish" | "draft" | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const copy = copyFor(category, dealType);
+  const copy = copyFor(form.category, form.dealType);
+
+  useEffect(() => {
+    let live = true;
+    async function boot() {
+      if (search.draft) {
+        try {
+          const draft = await getOwnDraft({ data: { id: search.draft } });
+          if (!live) return;
+          if (draft) {
+            const next = listingFormFromListing(draft);
+            setForm(next);
+            setListingForm(next);
+          } else {
+            setError("That draft is gone.");
+          }
+        } catch {
+          if (live) setError("Could not open that draft.");
+        }
+      } else {
+        const stored = useBoardStore.getState().listingForm;
+        if (stored && isListingFormDirty(stored)) {
+          setForm(stored);
+        }
+      }
+      if (live) setReady(true);
+    }
+    void boot();
+    return () => {
+      live = false;
+    };
+  }, [search.draft, setListingForm]);
+
+  useEffect(() => {
+    if (!ready) return;
+    setListingForm(form);
+  }, [form, ready, setListingForm]);
+
+  function patch(partial: Partial<ListingFormState>) {
+    setForm((prev) => ({ ...prev, ...partial }));
+  }
+
+  async function persistDraft() {
+    const listing = await saveListingDraft({
+      data: {
+        draftId: form.draftId ?? undefined,
+        category: form.category,
+        dealType: form.dealType,
+        title: form.title,
+        summary: form.summary,
+        description: form.description,
+        priceLabel: form.priceLabel,
+        quantity: form.quantity,
+        county: form.county,
+        state: form.state,
+        farmNote: form.farmNote,
+        imagePath: form.imagePath,
+        tags: form.tags,
+      },
+    });
+    const next = listingFormFromListing(listing);
+    setForm(next);
+    setListingForm(next);
+    setHomeCounty(form.county || homeCounty, form.state);
+    return listing;
+  }
+
+  if (!ready) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-16 text-sm text-muted">
+        Opening your listing…
+      </div>
+    );
+  }
 
   return (
-    <RequireUse reason="Posting a listing takes an account — and you agree the app is not a party to the deal.">
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-14">
       <p className="text-[13px] font-medium tracking-[0.16em] text-muted uppercase">
-        Free to post
+        {form.draftId ? "Draft" : "Free to post"}
       </p>
       <h1 className="mt-2 font-display text-4xl sm:text-5xl">{copy.heading}</h1>
       <p className="mt-3 max-w-xl text-base leading-relaxed text-muted">
         {copy.blurb}
       </p>
+      {form.draftId ? (
+        <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted">
+          This stays off the board until you put it up.{" "}
+          <Link
+            to="/saved"
+            className="underline-offset-2 hover:text-fg hover:underline"
+          >
+            Your drafts
+          </Link>
+        </p>
+      ) : null}
 
       <form
         className="mt-10 grid gap-8"
         onSubmit={async (event) => {
           event.preventDefault();
           event.stopPropagation();
-          const form = event.currentTarget;
-          const data = new FormData(form);
-          setPending(true);
+          setPending("publish");
           setError(null);
-          if (!isCountyInState(county, state)) {
+          if (!isCountyInState(form.county, form.state)) {
             setError("Pick the county this listing is in.");
-            setPending(false);
+            setPending(null);
             return;
           }
-          if (!imagePath) {
+          if (!form.imagePath) {
             setError("Add a photo of what you're posting.");
-            setPending(false);
+            setPending(null);
             return;
           }
           try {
             const profile = await ensureOwnProfile();
             const listing = await createListing({
               data: {
-                category,
-                dealType,
-                title: String(data.get("title") ?? ""),
-                summary: String(data.get("summary") ?? ""),
-                description: String(data.get("description") ?? ""),
-                priceLabel: String(data.get("priceLabel") ?? ""),
-                quantity: String(data.get("quantity") ?? ""),
-                location: `${county} County`,
-                county,
-                state,
+                draftId: form.draftId ?? undefined,
+                category: form.category,
+                dealType: form.dealType,
+                title: form.title,
+                summary: form.summary,
+                description: form.description,
+                priceLabel: form.priceLabel,
+                quantity: form.quantity,
+                location: `${form.county} County`,
+                county: form.county,
+                state: form.state,
                 farmName: `@${profile.username}`,
-                farmNote: String(data.get("farmNote") ?? ""),
-                imagePath,
-                tags: String(data.get("tags") ?? ""),
+                farmNote: form.farmNote,
+                imagePath: form.imagePath,
+                tags: form.tags,
               },
             });
             markPosted(listing.id);
-            setHomeCounty(county, state);
+            setHomeCounty(form.county, form.state);
+            clearListingForm();
             toast("Posted to the board");
             await navigate({
               to: "/listing/$slug",
@@ -154,7 +276,7 @@ function PostPage() {
               "Check the fields — titles need a few words, and the note should read like a real listing.",
             );
           } finally {
-            setPending(false);
+            setPending(null);
           }
         }}
       >
@@ -167,10 +289,10 @@ function PostPage() {
               <button
                 key={cat}
                 type="button"
-                onClick={() => setCategory(cat)}
+                onClick={() => patch({ category: cat })}
                 className={cn(
                   "h-10 rounded-full px-4 text-sm font-medium transition-colors",
-                  category === cat
+                  form.category === cat
                     ? "bg-primary text-primary-fg"
                     : "bg-surface text-muted shadow-[var(--shadow-card)] hover:text-fg",
                 )}
@@ -190,10 +312,10 @@ function PostPage() {
               <button
                 key={deal}
                 type="button"
-                onClick={() => setDealType(deal)}
+                onClick={() => patch({ dealType: deal })}
                 className={cn(
                   "h-10 rounded-full px-4 text-sm font-medium transition-colors",
-                  dealType === deal
+                  form.dealType === deal
                     ? "bg-primary text-primary-fg"
                     : "bg-surface text-muted shadow-[var(--shadow-card)] hover:text-fg",
                 )}
@@ -211,6 +333,8 @@ function PostPage() {
             placeholder={copy.title}
             required
             minLength={4}
+            value={form.title}
+            onChange={(event) => patch({ title: event.target.value })}
           />
           <Field
             label="One-line summary"
@@ -218,12 +342,14 @@ function PostPage() {
             placeholder={copy.summary}
             required
             minLength={8}
+            value={form.summary}
+            onChange={(event) => patch({ summary: event.target.value })}
           />
           <div className="grid gap-1.5">
             <Label htmlFor="description">
-              {dealType === "seeking"
+              {form.dealType === "seeking"
                 ? "Describe the request"
-                : category === "skills" || dealType === "offered"
+                : form.category === "skills" || form.dealType === "offered"
                   ? "Describe the skill"
                   : "The full story"}
             </Label>
@@ -234,6 +360,8 @@ function PostPage() {
               minLength={20}
               maxLength={1000}
               placeholder={copy.story}
+              value={form.description}
+              onChange={(event) => patch({ description: event.target.value })}
             />
             <p className="text-xs text-subtle">
               Two lines show on the board. The whole description shows when
@@ -244,14 +372,18 @@ function PostPage() {
             <Field
               label="Price outside South Carolina"
               name="priceLabel"
-              placeholder={dealType === "seeking" ? "Trade labor or cash" : "$7 / bale"}
+              placeholder={form.dealType === "seeking" ? "Trade labor or cash" : "$7 / bale"}
               required
+              value={form.priceLabel}
+              onChange={(event) => patch({ priceLabel: event.target.value })}
             />
             <Field
               label="Quantity"
               name="quantity"
-              placeholder={dealType === "seeking" ? "As soon as next week" : "80 bales"}
+              placeholder={form.dealType === "seeking" ? "As soon as next week" : "80 bales"}
               required
+              value={form.quantity}
+              onChange={(event) => patch({ quantity: event.target.value })}
             />
           </div>
           <p className="-mt-2 text-sm text-muted">
@@ -264,11 +396,10 @@ function PostPage() {
               <CountySelect
                 id="county"
                 required
-                value={county}
-                state={state}
+                value={form.county}
+                state={form.state}
                 onChange={(value, nextState) => {
-                  setCounty(value);
-                  setState(nextState);
+                  patch({ county: value, state: nextState });
                 }}
               />
             </div>
@@ -278,6 +409,8 @@ function PostPage() {
               placeholder="Dry bales, stacked in the barn."
               required
               minLength={8}
+              value={form.farmNote}
+              onChange={(event) => patch({ farmNote: event.target.value })}
             />
           </div>
           <p className="text-sm text-muted">
@@ -289,19 +422,76 @@ function PostPage() {
             label="Tags (optional)"
             name="tags"
             placeholder="hay, timothy, feed"
+            value={form.tags}
+            onChange={(event) => patch({ tags: event.target.value })}
           />
         </div>
 
-        <PhotoPicker value={imagePath} onChange={setImagePath} hint={copy.photo} />
+        <PhotoPicker
+          value={form.imagePath}
+          onChange={(imagePath) => patch({ imagePath })}
+          hint={copy.photo}
+        />
 
         {error ? <p className="text-sm text-primary">{error}</p> : null}
 
-        <Button type="submit" size="lg" disabled={pending}>
-          {pending ? "Posting…" : copy.submit}
-        </Button>
+        <div className="grid gap-3">
+          <div className="flex flex-wrap gap-3">
+            <Button type="submit" size="lg" disabled={pending !== null}>
+              {pending === "publish" ? "Posting…" : copy.submit}
+            </Button>
+            <Button
+              type="button"
+              size="lg"
+              variant="outline"
+              disabled={pending !== null}
+              onClick={() => {
+                setPending("draft");
+                setError(null);
+                void persistDraft()
+                  .then(async (listing) => {
+                    toast("Draft saved — still off the board");
+                    if (!search.draft || search.draft !== listing.id) {
+                      await navigate({
+                        to: "/post",
+                        search: { draft: listing.id },
+                        replace: true,
+                      });
+                    }
+                  })
+                  .catch(() => {
+                    setError("Could not save that draft. Try again.");
+                  })
+                  .finally(() => setPending(null));
+              }}
+            >
+              {pending === "draft" ? "Saving…" : "Save draft"}
+            </Button>
+          </div>
+          <p className="text-sm text-muted">
+            Save draft keeps tags, photos, and text on your account. A photo
+            that fails to upload will not wipe the rest of this form.
+          </p>
+          {isListingFormDirty(form) ? (
+            <button
+              type="button"
+              className="justify-self-start text-sm text-muted underline-offset-2 hover:text-fg hover:underline"
+              onClick={() => {
+                const next = freshForm(search, homeCounty, homeState);
+                setForm(next);
+                clearListingForm();
+                setError(null);
+                if (search.draft) {
+                  void navigate({ to: "/post", search: {}, replace: true });
+                }
+              }}
+            >
+              Start a new listing
+            </button>
+          ) : null}
+        </div>
       </form>
     </div>
-    </RequireUse>
   );
 }
 

@@ -1,4 +1,4 @@
-import { SC_COUNTY_GROUPS } from "@/lib/counties";
+import { SC_COUNTY_GROUPS } from "./counties.ts";
 
 export type StateCode = "SC" | "NC" | "GA" | "TN" | "AL" | "FL" | "VA";
 

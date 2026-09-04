@@ -239,6 +239,11 @@ function OfficeDesk() {
               {listings.map((row) => (
                 <tr key={row.id} className="border-b border-border/70 last:border-0">
                   <td className="px-4 py-3">
+                    {row.isDraft ? (
+                      <span className="font-medium">
+                        {row.title.trim() || "Untitled draft"}
+                      </span>
+                    ) : (
                     <Link
                       to="/listing/$slug"
                       params={{ slug: row.slug }}
@@ -246,8 +251,10 @@ function OfficeDesk() {
                     >
                       {row.title}
                     </Link>
+                    )}
                     <p className="text-xs text-subtle">
-                      {row.category} · {timeAgo(row.createdAt)}
+                      {row.category}
+                      {row.isDraft ? " · draft" : ""} · {timeAgo(row.createdAt)}
                     </p>
                     <PriceEditor listingId={row.id} priceLabel={row.priceLabel} office />
                   </td>

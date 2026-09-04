@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CountySelect } from "@/components/county-select";
@@ -71,6 +71,14 @@ function ProfileEditor() {
         Username and picture are public. Real name, address, phone, and email
         stay on this page for you. Neighbors talk through private messages
         after you accept.
+      </p>
+      <p className="mt-3 text-sm text-muted">
+        <Link
+          to="/saved"
+          className="underline-offset-2 hover:text-fg hover:underline"
+        >
+          Your drafts and pinned listings
+        </Link>
       </p>
 
       <form
