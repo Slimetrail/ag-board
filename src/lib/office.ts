@@ -26,6 +26,7 @@ export type OfficeListing = {
   username: string | null;
   email: string | null;
   createdAt: string;
+  isDraft: boolean;
 };
 
 export type OfficeTrade = {
@@ -136,10 +137,11 @@ export const listOfficeBoard = createServerFn({ method: "POST" })
       created_at: string;
       username: string | null;
       email: string | null;
+      is_draft: boolean;
     }>(
       `select l.id, l.slug, l.title, l.category, l.deal_type, l.price_label,
               l.region, l.location, l.farm_name, l.created_at,
-              p.username, p.email
+              p.username, p.email, coalesce(l.is_draft, false) as is_draft
        from listings l
        left join profiles p on p.user_id = l.user_id
        order by l.created_at desc`,
@@ -177,6 +179,7 @@ export const listOfficeBoard = createServerFn({ method: "POST" })
           username: row.username,
           email: row.email,
           createdAt: row.created_at,
+          isDraft: Boolean(row.is_draft),
         }),
       ),
       trades: trades.map(

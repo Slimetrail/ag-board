@@ -1,6 +1,10 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { BoardGroundId } from "@/lib/board-ground";
+import {
+  EMPTY_LISTING_FORM,
+  type ListingFormState,
+} from "@/lib/listing-draft";
 
 type BoardState = {
   savedIds: number[];
@@ -10,6 +14,7 @@ type BoardState = {
   homeState: string;
   boardView: "tile" | "list";
   boardGround: BoardGroundId;
+  listingForm: ListingFormState;
   toggleSaved: (id: number) => void;
   isSaved: (id: number) => boolean;
   markPosted: (id: number) => void;
@@ -17,6 +22,8 @@ type BoardState = {
   setHomeCounty: (county: string, state?: string) => void;
   setBoardView: (view: "tile" | "list") => void;
   setBoardGround: (ground: BoardGroundId) => void;
+  setListingForm: (form: ListingFormState) => void;
+  clearListingForm: () => void;
 };
 
 export const useBoardStore = create<BoardState>()(
@@ -29,6 +36,7 @@ export const useBoardStore = create<BoardState>()(
       homeState: "SC",
       boardView: "tile",
       boardGround: "linen",
+      listingForm: EMPTY_LISTING_FORM,
       toggleSaved: (id) =>
         set((state) => ({
           savedIds: state.savedIds.includes(id)
@@ -47,6 +55,8 @@ export const useBoardStore = create<BoardState>()(
         set({ homeCounty, homeState }),
       setBoardView: (boardView) => set({ boardView }),
       setBoardGround: (boardGround) => set({ boardGround }),
+      setListingForm: (listingForm) => set({ listingForm }),
+      clearListingForm: () => set({ listingForm: { ...EMPTY_LISTING_FORM } }),
     }),
     { name: "acre-board" },
   ),

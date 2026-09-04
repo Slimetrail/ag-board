@@ -15,6 +15,7 @@ import { resolveCategoryCover } from "@/lib/category-cover";
 import { SEED_LISTINGS, SEED_NOTES } from "@/lib/seed-data";
 import { looksLikeContactPii } from "@/lib/connect-helpers";
 import { isCountyInState, placeLabel } from "@/lib/geo";
+import { BOARD_VISIBLE_SQL, draftPlace, draftSaveInput } from "@/lib/listing-draft";
 import { isUserUploadPath, USER_IMAGE_PATH_MAX } from "@/lib/upload-path";
 
 export type Listing = {
@@ -39,6 +40,8 @@ export type Listing = {
   createdAt: string;
   userId: string | null;
   decidingAt: string | null;
+  isDraft: boolean;
+  publishedAt: string | null;
 };
 
 export type BoardNote = {
@@ -77,6 +80,8 @@ type ListingRow = {
   created_at: string;
   user_id: string | null;
   deciding_at: string | null;
+  is_draft?: boolean | null;
+  published_at?: string | null;
 };
 
 type NoteRow = {
@@ -110,6 +115,8 @@ function mapListing(row: ListingRow): Listing {
     createdAt: row.created_at,
     userId: row.user_id ?? null,
     decidingAt: row.deciding_at ?? null,
+    isDraft: Boolean(row.is_draft),
+    publishedAt: row.published_at ?? null,
   };
 }
 
@@ -127,21 +134,75 @@ type SeedGlobal = typeof globalThis & {
   __acreSeedV6__?: Promise<void>;
 };
 
-async function expireStaleDeciding(sql: Awaited<ReturnType<typeof getSql>>) {
+async function ensureListingColumns(sql: Awaited<ReturnType<typeof getSql>>) {
   try {
     await sql.query(
       `alter table listings add column if not exists deciding_at timestamptz`,
     );
     await sql.query(
+      `alter table listings add column if not exists is_draft boolean not null default false`,
+    );
+    await sql.query(
+      `alter table listings add column if not exists published_at timestamptz`,
+    );
+  } catch {
+    /* older deploys should still show the board */
+  }
+}
+
+async function expireStaleDeciding(sql: Awaited<ReturnType<typeof getSql>>) {
+  try {
+    await ensureListingColumns(sql);
+    await sql.query(
       `update listings
        set available = false
        where available = true
+         and is_draft = false
          and deciding_at is not null
          and deciding_at < now() - interval '14 days'`,
     );
   } catch {
     /* older deploys without the column should still show the board */
   }
+}
+
+async function requireTerms(
+  sql: Awaited<ReturnType<typeof getSql>>,
+  userId: string,
+) {
+  const terms = await sql.query<{ n: number }>(
+    `select count(*)::int as n from profiles
+     where user_id = $1 and terms_accepted_at is not null`,
+    [userId],
+  );
+  if ((terms[0]?.n ?? 0) === 0) {
+    throw new Error("Agree to the terms before you post.");
+  }
+}
+
+async function requireOpenState(
+  sql: Awaited<ReturnType<typeof getSql>>,
+  state: string,
+) {
+  const open = await sql.query<{ enabled_states: string }>(
+    `select enabled_states from board_settings where id = 1 limit 1`,
+  );
+  const enabled = (open[0]?.enabled_states ?? "SC").split(",");
+  if (state !== "SC" && !enabled.includes(state)) {
+    throw new Error("That state is not on the board yet.");
+  }
+}
+
+async function ownedDraft(
+  sql: Awaited<ReturnType<typeof getSql>>,
+  draftId: number,
+  userId: string,
+) {
+  const rows = await sql.query<ListingRow>(
+    `select * from listings where id = $1 and user_id = $2 and is_draft = true limit 1`,
+    [draftId, userId],
+  );
+  return rows[0] ?? null;
 }
 
 async function ensureSeed() {
@@ -243,7 +304,7 @@ export const listListings = createServerFn({ method: "POST" })
     await ensureSeed();
     const sql = await getSql();
     await expireStaleDeciding(sql);
-    const clauses: string[] = ["available = true"];
+    const clauses: string[] = [BOARD_VISIBLE_SQL];
     const params: unknown[] = [];
 
     if (data.category) {
@@ -316,7 +377,7 @@ export const categoryCounts = createServerFn({ method: "POST" }).handler(
              '{}'
            ) as cover_images
          from listings
-         where available = true
+         where ${BOARD_VISIBLE_SQL}
          group by category`,
       );
       const now = new Date();
@@ -347,7 +408,7 @@ export const getListing = createServerFn({ method: "POST" })
     const sql = await getSql();
     await expireStaleDeciding(sql);
     const rows = await sql.query<ListingRow>(
-      `select * from listings where slug = $1 and available = true limit 1`,
+      `select * from listings where slug = $1 and ${BOARD_VISIBLE_SQL} limit 1`,
       [data.slug],
     );
     const listingRow = rows[0];
@@ -359,7 +420,7 @@ export const getListing = createServerFn({ method: "POST" })
     );
     const similar = await sql.query<ListingRow>(
       `select * from listings
-       where available = true and category = $1 and slug <> $2
+       where ${BOARD_VISIBLE_SQL} and category = $1 and slug <> $2
        order by (region = $3) desc, created_at desc
        limit 3`,
       [listing.category, listing.slug, listing.region],
@@ -375,6 +436,7 @@ export const getListing = createServerFn({ method: "POST" })
   });
 
 const createInput = z.object({
+  draftId: z.number().int().positive().optional(),
   category: z.enum(CATEGORIES),
   dealType: z.enum(DEAL_TYPES),
   title: z.string().trim().min(4).max(80),
@@ -397,14 +459,8 @@ export const createListing = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await ensureSeed();
     const sql = await getSql();
-    const terms = await sql.query<{ n: number }>(
-      `select count(*)::int as n from profiles
-       where user_id = $1 and terms_accepted_at is not null`,
-      [context.userId],
-    );
-    if ((terms[0]?.n ?? 0) === 0) {
-      throw new Error("Agree to the terms before you post.");
-    }
+    await ensureListingColumns(sql);
+    await requireTerms(sql, context.userId);
     if (!isUserUploadPath(data.imagePath)) {
       throw new Error("Upload your own photo of what you're posting.");
     }
@@ -412,21 +468,52 @@ export const createListing = createServerFn({ method: "POST" })
     if (!isCountyInState(data.county, state)) {
       throw new Error("Pick a county in an open state.");
     }
-    const open = await sql.query<{ enabled_states: string }>(
-      `select enabled_states from board_settings where id = 1 limit 1`,
-    );
-    const enabled = (open[0]?.enabled_states ?? "SC").split(",");
-    if (state !== "SC" && !enabled.includes(state)) {
-      throw new Error("That state is not on the board yet.");
+    await requireOpenState(sql, state);
+    const region = placeLabel(data.county, state);
+    const tags = data.tags ?? "";
+    if (data.draftId) {
+      const draft = await ownedDraft(sql, data.draftId, context.userId);
+      if (!draft) throw new Error("That draft is gone.");
+      const updated = await sql.query<ListingRow>(
+        `update listings set
+           category = $1, deal_type = $2, title = $3, summary = $4,
+           description = $5, price_label = $6, quantity = $7, location = $8,
+           region = $9, farm_name = $10, farm_note = $11, image_path = $12,
+           tags = $13, available = true, is_draft = false,
+           published_at = now(), created_at = now(), deciding_at = null
+         where id = $14 and user_id = $15 and is_draft = true
+         returning *`,
+        [
+          data.category,
+          data.dealType,
+          data.title,
+          data.summary,
+          data.description,
+          data.priceLabel,
+          data.quantity,
+          data.location,
+          region,
+          data.farmName,
+          data.farmNote,
+          data.imagePath,
+          tags,
+          data.draftId,
+          context.userId,
+        ],
+      );
+      if (!updated[0]) throw new Error("That draft is gone.");
+      return mapListing(updated[0]);
     }
     const slug = `${slugify(data.title)}-${Math.random().toString(36).slice(2, 6)}`;
     const rows = await sql.query<ListingRow>(
       `insert into listings (
         slug, category, deal_type, title, summary, description,
         price_cents, price_label, quantity, location, region,
-        farm_name, farm_note, image_path, tags, user_id
+        farm_name, farm_note, image_path, tags, user_id,
+        available, is_draft, published_at
       ) values (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
+        true, false, now()
       ) returning *`,
       [
         slug,
@@ -439,15 +526,148 @@ export const createListing = createServerFn({ method: "POST" })
         data.priceLabel,
         data.quantity,
         data.location,
-        placeLabel(data.county, state),
+        region,
         data.farmName,
         data.farmNote,
         data.imagePath,
-        data.tags ?? "",
+        tags,
         context.userId,
       ],
     );
     return mapListing(rows[0]!);
+  });
+
+export const saveListingDraft = createServerFn({ method: "POST" })
+  .validator(draftSaveInput)
+  .middleware([authMiddleware])
+  .handler(async ({ data, context }) => {
+    await ensureSeed();
+    const sql = await getSql();
+    await ensureListingColumns(sql);
+    await requireTerms(sql, context.userId);
+    const imagePath = data.imagePath.trim();
+    if (imagePath && !isUserUploadPath(imagePath)) {
+      throw new Error("Upload your own photo of what you're posting.");
+    }
+    const state = (data.state ?? "SC").toUpperCase();
+    if (state !== "SC") {
+      await requireOpenState(sql, state);
+    }
+    const profile = await sql.query<{ username: string }>(
+      `select username from profiles where user_id = $1 limit 1`,
+      [context.userId],
+    );
+    const farmName = `@${profile[0]?.username ?? "neighbor"}`;
+    const { location, region } = draftPlace(data.county, state);
+    const title = data.title.trim();
+    const summary = data.summary.trim();
+    const description = data.description.trim();
+    const priceLabel = data.priceLabel.trim();
+    const quantity = data.quantity.trim();
+    const farmNote = data.farmNote.trim();
+    const tags = data.tags.trim();
+    if (data.draftId) {
+      const draft = await ownedDraft(sql, data.draftId, context.userId);
+      if (!draft) throw new Error("That draft is gone.");
+      const updated = await sql.query<ListingRow>(
+        `update listings set
+           category = $1, deal_type = $2, title = $3, summary = $4,
+           description = $5, price_label = $6, quantity = $7, location = $8,
+           region = $9, farm_name = $10, farm_note = $11, image_path = $12,
+           tags = $13, available = false, is_draft = true, published_at = null
+         where id = $14 and user_id = $15 and is_draft = true
+         returning *`,
+        [
+          data.category,
+          data.dealType,
+          title,
+          summary,
+          description,
+          priceLabel,
+          quantity,
+          location,
+          region,
+          farmName,
+          farmNote,
+          imagePath,
+          tags,
+          data.draftId,
+          context.userId,
+        ],
+      );
+      if (!updated[0]) throw new Error("That draft is gone.");
+      return mapListing(updated[0]);
+    }
+    const slug = `${slugify(title || "draft")}-${Math.random().toString(36).slice(2, 6)}`;
+    const rows = await sql.query<ListingRow>(
+      `insert into listings (
+        slug, category, deal_type, title, summary, description,
+        price_cents, price_label, quantity, location, region,
+        farm_name, farm_note, image_path, tags, user_id,
+        available, is_draft, published_at
+      ) values (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
+        false, true, null
+      ) returning *`,
+      [
+        slug,
+        data.category,
+        data.dealType,
+        title,
+        summary,
+        description,
+        null,
+        priceLabel,
+        quantity,
+        location,
+        region,
+        farmName,
+        farmNote,
+        imagePath,
+        tags,
+        context.userId,
+      ],
+    );
+    return mapListing(rows[0]!);
+  });
+
+export const listOwnDrafts = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const sql = await getSql();
+    await ensureListingColumns(sql);
+    const rows = await sql.query<ListingRow>(
+      `select * from listings
+       where user_id = $1 and is_draft = true
+       order by created_at desc`,
+      [context.userId],
+    );
+    return rows.map(mapListing);
+  });
+
+export const getOwnDraft = createServerFn({ method: "POST" })
+  .validator(z.object({ id: z.number().int().positive() }))
+  .middleware([authMiddleware])
+  .handler(async ({ data, context }) => {
+    const sql = await getSql();
+    await ensureListingColumns(sql);
+    const row = await ownedDraft(sql, data.id, context.userId);
+    return row ? mapListing(row) : null;
+  });
+
+export const deleteOwnDraft = createServerFn({ method: "POST" })
+  .validator(z.object({ id: z.number().int().positive() }))
+  .middleware([authMiddleware])
+  .handler(async ({ data, context }) => {
+    const sql = await getSql();
+    await ensureListingColumns(sql);
+    const draft = await ownedDraft(sql, data.id, context.userId);
+    if (!draft) throw new Error("That draft is gone.");
+    await sql.query(
+      `delete from listings where id = $1 and user_id = $2 and is_draft = true`,
+      [data.id, context.userId],
+    );
+    return { ok: true as const };
   });
 
 const noteInput = z.object({
@@ -466,6 +686,14 @@ export const addBoardNote = createServerFn({ method: "POST" })
       );
     }
     const sql = await getSql();
+    await ensureListingColumns(sql);
+    const listing = await sql.query<{ is_draft: boolean; available: boolean }>(
+      `select is_draft, available from listings where id = $1 limit 1`,
+      [data.listingId],
+    );
+    if (!listing[0] || listing[0].is_draft || !listing[0].available) {
+      throw new Error("That listing is gone.");
+    }
     await sql.query(
       `insert into board_notes (listing_id, farm_name, body) values ($1, $2, $3)`,
       [data.listingId, data.farmName, data.body],
@@ -569,6 +797,16 @@ export const setListingStatus = createServerFn({ method: "POST" })
     const listing = rows[0];
     if (!listing || listing.user_id !== context.userId) {
       throw new Error("You can't change that listing.");
+    }
+    if (listing.is_draft) {
+      if (data.action === "delete") {
+        await sql.query(
+          `delete from listings where id = $1 and user_id = $2 and is_draft = true`,
+          [data.listingId, context.userId],
+        );
+        return { ok: true, gone: true as const };
+      }
+      throw new Error("Publish this draft from the post form.");
     }
     if (data.action === "delete") {
       await sql.query(
