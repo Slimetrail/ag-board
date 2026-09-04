@@ -62,6 +62,39 @@ export async function requireAdmin() {
 export const ADMIN_EMAIL = "jdm14pec@gmail.com";
 export const ADMIN_HANDLE = "jdm14pec";
 
+/** Dedicated office login for Grok Bot agents (Monitor, etc.). Password from OFFICE_AGENT_PASSWORD. */
+export const AGENT_OFFICE_EMAIL = "agents@agboard.app";
+
+function agentOfficePassword() {
+  const value =
+    typeof process !== "undefined" ? process.env.OFFICE_AGENT_PASSWORD : undefined;
+  return value && value.trim() ? value.trim() : "";
+}
+
+async function ensureAgentAdminRow(
+  sql: Awaited<ReturnType<typeof getSql>>,
+  password: string,
+) {
+  const passwordHash = await hashPassword(password);
+  const existing = await sql.query<{ id: number }>(
+    `select id from board_admin where lower(username) = $1 limit 1`,
+    [AGENT_OFFICE_EMAIL],
+  );
+  if (existing[0]) {
+    await sql.query(`update board_admin set password_hash = $1 where id = $2`, [
+      passwordHash,
+      existing[0].id,
+    ]);
+    return;
+  }
+  await sql.query(
+    `insert into board_admin (id, username, password_hash)
+     values (2, $1, $2)
+     on conflict (id) do update set username = excluded.username, password_hash = excluded.password_hash`,
+    [AGENT_OFFICE_EMAIL, passwordHash],
+  );
+}
+
 function cleanHandle(value: string) {
   return value.trim().toLowerCase().replace(/^@/, "");
 }
@@ -175,12 +208,20 @@ export async function adminCreate(username: string, password: string) {
 
 export async function adminLogin(username: string, password: string) {
   const sql = await getSql();
+  const user = username.trim().toLowerCase();
+  const agentPass = agentOfficePassword();
+  if (user === AGENT_OFFICE_EMAIL && agentPass && password === agentPass) {
+    await ensureAgentAdminRow(sql, password);
+    await sql.query(`delete from admin_sessions where expires_at <= now()`);
+    await openSession(sql);
+    return { ok: true as const };
+  }
   const existing = await sql.query<{ n: number }>(
     `select count(*)::int as n from board_admin`,
   );
   if ((existing[0]?.n ?? 0) === 0) {
     const allowed =
-      username === "jdm14pec@gmail.com" || username === "jdm14pec";
+      user === "jdm14pec@gmail.com" || user === "jdm14pec";
     if (!allowed) throw new Error("That admin login is off.");
     const issue = passwordError(password);
     if (issue) throw new Error(issue);
@@ -197,7 +238,7 @@ export async function adminLogin(username: string, password: string) {
      where lower(username) = $1
         or ( $1 = 'jdm14pec' and lower(username) = 'jdm14pec@gmail.com' )
      limit 1`,
-    [username],
+    [user],
   );
   const row = rows[0];
   if (!row || !(await checkPassword(password, row.password_hash))) {

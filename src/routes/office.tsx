@@ -89,8 +89,8 @@ function AdminLogin({ onDone }: { onDone: () => void }) {
       </p>
       <h1 className="mt-2 font-display text-4xl">Office login</h1>
       <p className="mt-4 text-sm leading-relaxed text-muted">
-        Only the owner. Sign in with the office email and password. No other
-        account can open this desk.
+        Owner and approved agent accounts. Sign in with office email and
+        password to open this desk.
       </p>
       <form
         className="mt-4 grid gap-4"
@@ -110,7 +110,8 @@ function AdminLogin({ onDone }: { onDone: () => void }) {
           <Label htmlFor="office-user">Email</Label>
           <Input
             id="office-user"
-            type="email"
+            type="text"
+            inputMode="email"
             value={username}
             onChange={(event) => setUsername(event.target.value.toLowerCase())}
             required
