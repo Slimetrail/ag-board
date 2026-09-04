@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { FarmAvatar } from "@/components/farm-avatar";
+import { InviteRespondButtons } from "@/components/invite-respond-buttons";
+import { ListingInviteInbox } from "@/components/listing-invite-inbox";
 import { MessageThread } from "@/components/message-thread";
 import { NeighborRating } from "@/components/neighbor-rating";
 import { Button } from "@/components/ui/button";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { shouldShowInviteRespond } from "@/lib/connect-helpers";
 import {
   getConnection,
   getPublicByUserId,
@@ -71,11 +74,11 @@ export function ConnectPanel({
     }
   }
 
-  async function acceptRequest() {
+  async function respondToRequest(accept: boolean) {
     if (!pendingInviteId) return;
     setPending(true);
     try {
-      await respondInvite({ data: { id: pendingInviteId, accept: true } });
+      await respondInvite({ data: { id: pendingInviteId, accept } });
       await load();
     } catch (err) {
       if (String(err instanceof Error ? err.message : err).includes("Agree")) {
@@ -120,7 +123,10 @@ export function ConnectPanel({
       ) : null}
 
       {relation === "self" ? (
-        <p className="mt-4 text-sm text-subtle">This is your card.</p>
+        <div className="mt-4">
+          <p className="text-sm text-subtle">This is your card.</p>
+          {listingId ? <ListingInviteInbox listingId={listingId} /> : null}
+        </div>
       ) : relation === "connected" && user ? (
         <MessageThread
           otherUserId={userId}
@@ -130,13 +136,15 @@ export function ConnectPanel({
       ) : !user ? (
         <div className="mt-4">
           <p className="text-sm leading-relaxed text-muted">
-            Sign in to request a connection. Real name, address, phone, and
-            email stay private. After they accept, you talk in a private
-            message thread.
+            {listingId
+              ? "Sign in to mark Interested. Real name, address, phone, and email stay private until they Accept."
+              : "Sign in to request a connection. Real name, address, phone, and email stay private. After they accept, you talk in a private message thread."}
           </p>
-          <Button asChild className="mt-3 w-full">
-            <Link to="/login">Sign in to request</Link>
-          </Button>
+          {listingId ? null : (
+            <Button asChild className="mt-3 w-full">
+              <Link to="/login">Sign in to request</Link>
+            </Button>
+          )}
         </div>
       ) : (
         <div className="mt-4">
@@ -144,10 +152,19 @@ export function ConnectPanel({
             Real name, address, phone, and email stay private. Accept opens a
             private message thread — that is the contact channel.
           </p>
-          {relation === "pending-in" ? (
-            <Button className="mt-3 w-full" disabled={pending} onClick={() => void acceptRequest()}>
-              {pending ? "Saving…" : "Accept request"}
-            </Button>
+          {shouldShowInviteRespond(relation) ? (
+            <InviteRespondButtons
+              className="mt-3"
+              disabled={pending}
+              onAccept={() => void respondToRequest(true)}
+              onDeny={() => void respondToRequest(false)}
+            />
+          ) : listingId ? (
+            <p className="mt-3 text-sm text-subtle">
+              {relation === "pending-out"
+                ? "Interested — waiting on Accept. Favorite stays a bookmark only."
+                : "Use Interested on the listing to send a request. Favorite does not notify them."}
+            </p>
           ) : (
             <Button
               className="mt-3 w-full"

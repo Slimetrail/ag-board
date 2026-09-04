@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Bookmark } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { bookmarkToast } from "@/lib/connect-helpers";
 import { useBoardStore } from "@/lib/board-store";
 import { cn } from "@/lib/utils";
 
@@ -32,14 +33,14 @@ export function SaveButton({
         event.preventDefault();
         event.stopPropagation();
         toggleSaved(listingId);
-        toast(saved ? "Taken off your list" : "Pinned to your list", {
-          description: title,
-        });
+        const copy = bookmarkToast(!saved, title);
+        toast(copy.title, { description: copy.description });
       }}
       aria-pressed={saved}
+      aria-label={saved ? "Remove favorite bookmark" : "Favorite this listing"}
     >
       <Bookmark className={cn("size-4", saved && "fill-current")} />
-      {saved ? "Pinned" : "Pin this"}
+      {saved ? "Favorited" : "Favorite"}
     </Button>
   );
 }

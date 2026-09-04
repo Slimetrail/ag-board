@@ -99,8 +99,9 @@ function AboutPage() {
           </li>
           <li>
             Username and picture are public. Real name, address, phone, and
-            email stay private. After Accept, you talk in a private message
-            thread — that is the contact channel.
+            email stay private. Favorite a listing to bookmark it — that does
+            not notify anyone. Interested sends a request. After Accept, you
+            talk in a private message thread — that is the contact channel.
           </li>
           <li>
             The app is not a party to any trade. If you connect, you take

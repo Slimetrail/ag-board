@@ -41,3 +41,35 @@ export function roundRatingAverage(value: number | string | null | undefined): n
   if (!Number.isFinite(n)) return null;
   return Math.round(n * 10) / 10;
 }
+
+/** Incoming invite: recipient can Accept or Deny. */
+export function shouldShowInviteRespond(relation: string): boolean {
+  return relation === "pending-in";
+}
+
+/** Listing viewer can mark Interested unless they already got a request, connected, or own the card. */
+export function shouldShowInterested(relation: string): boolean {
+  return relation === "none" || relation === "pending-out";
+}
+
+export function interestedButtonLabel(relation: string, busy: boolean): string {
+  if (busy) return "Sending…";
+  if (relation === "pending-out") return "Interested — waiting on Accept";
+  return "Interested";
+}
+
+export function bookmarkToast(nowFavorited: boolean, title: string): {
+  title: string;
+  description: string;
+} {
+  if (nowFavorited) {
+    return {
+      title: "Favorited — bookmark only",
+      description: `${title} — they were not notified.`,
+    };
+  }
+  return {
+    title: "Removed from favorites",
+    description: title,
+  };
+}

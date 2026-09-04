@@ -8,6 +8,7 @@ import { ListingPrice } from "@/components/listing-price";
 import { NoteForm } from "@/components/note-form";
 import { PosterStatus } from "@/components/poster-status";
 import { PriceEditor } from "@/components/price-editor";
+import { InterestedButton } from "@/components/interested-button";
 import { SaveButton } from "@/components/save-button";
 import { Badge } from "@/components/ui/badge";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -149,11 +150,28 @@ function ListingPage() {
             <p className="mt-3 text-xs text-subtle">
               Posted {timeAgo(listing.createdAt)}
             </p>
-            <SaveButton
-              listingId={listing.id}
-              title={listing.title}
-              className="mt-6 w-full"
-            />
+            <div className="mt-6">
+              <div className="flex flex-wrap gap-2">
+                <SaveButton
+                  listingId={listing.id}
+                  title={listing.title}
+                  className="min-w-[8.5rem] flex-1"
+                />
+                {listing.userId && !canEdit ? (
+                  <InterestedButton
+                    ownerUserId={listing.userId}
+                    listingId={listing.id}
+                    className="min-w-[8.5rem] flex-1"
+                  />
+                ) : null}
+              </div>
+              <p className="mt-2 text-xs leading-relaxed text-subtle">
+                Favorite is a bookmark on this device — they are not notified.
+                {listing.userId && !canEdit
+                  ? " Interested sends the owner a request. Contact stays private until they Accept."
+                  : null}
+              </p>
+            </div>
           </div>
 
           {listing.userId ? (

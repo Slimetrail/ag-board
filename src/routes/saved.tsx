@@ -43,8 +43,8 @@ function SavedPage() {
       </p>
       <h1 className="mt-2 font-display text-4xl sm:text-5xl">Pinned listings</h1>
       <p className="mt-3 max-w-xl text-base text-muted">
-        Things you marked to come back to. Kept on this device, not on a
-        profile.
+        Favorites you marked to come back to. Kept on this device — a favorite
+        does not notify the owner or send a request.
       </p>
 
       {saved === null ? (

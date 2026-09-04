@@ -15,6 +15,8 @@ const buttonVariants = cva(
           "border border-border bg-transparent text-fg hover:bg-wash",
         ghost: "text-fg hover:bg-wash",
         link: "text-primary underline-offset-4 hover:underline",
+        destructive:
+          "border border-alert bg-transparent text-alert hover:bg-alert hover:text-primary-fg",
       },
       size: {
         default: "h-11 px-4",

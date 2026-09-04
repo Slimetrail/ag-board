@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import { FarmAvatar } from "@/components/farm-avatar";
+import { InviteRespondButtons } from "@/components/invite-respond-buttons";
 import { RequireUse } from "@/components/require-use";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,9 +47,9 @@ function InvitesList() {
       </p>
       <h1 className="mt-2 font-display text-4xl sm:text-5xl">Invites</h1>
       <p className="mt-3 max-w-xl text-base leading-relaxed text-muted">
-        Accepting a request opens a private message thread. Real name, address,
-        phone, and email stay private. Until you press Accept request, neighbors
-        only see a username and picture.
+        Accept or Deny each request. Accept opens a private message thread.
+        Real name, address, phone, and email stay private until you press
+        Accept. Deny closes the request without sharing anything.
       </p>
 
       {!loaded ? (
@@ -61,25 +62,16 @@ function InvitesList() {
                 key={invite.id}
                 invite={invite}
                 actions={
-                  <>
-                    <Button
-                      size="sm"
-                      onClick={() =>
-                        void respondInvite({ data: { id: invite.id, accept: true } }).then(load)
-                      }
-                    >
-                      Accept request
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() =>
-                        void respondInvite({ data: { id: invite.id, accept: false } }).then(load)
-                      }
-                    >
-                      Decline
-                    </Button>
-                  </>
+                  <InviteRespondButtons
+                    size="sm"
+                    className="w-full min-w-[12.5rem] sm:w-auto"
+                    onAccept={() =>
+                      void respondInvite({ data: { id: invite.id, accept: true } }).then(load)
+                    }
+                    onDeny={() =>
+                      void respondInvite({ data: { id: invite.id, accept: false } }).then(load)
+                    }
+                  />
                 }
               />
             ))}
@@ -143,23 +135,25 @@ function InviteCard({
   actions?: ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl bg-surface p-4 shadow-[var(--shadow-card)]">
-      <FarmAvatar
-        name={invite.other.username}
-        src={invite.other.imagePath}
-        className="size-11"
-      />
-      <div className="min-w-0 flex-1">
-        <p className="font-medium">@{invite.other.username}</p>
-        <Link
-          to="/u/$username"
-          params={{ username: invite.other.username }}
-          className="text-sm text-muted hover:text-fg"
-        >
-          @{invite.other.username}
-        </Link>
+    <div className="flex flex-col gap-3 rounded-xl bg-surface p-4 shadow-[var(--shadow-card)] sm:flex-row sm:items-center">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <FarmAvatar
+          name={invite.other.username}
+          src={invite.other.imagePath}
+          className="size-11"
+        />
+        <div className="min-w-0 flex-1">
+          <p className="font-medium">@{invite.other.username}</p>
+          <Link
+            to="/u/$username"
+            params={{ username: invite.other.username }}
+            className="text-sm text-muted hover:text-fg"
+          >
+            @{invite.other.username}
+          </Link>
+        </div>
       </div>
-      {actions ? <div className="flex gap-2">{actions}</div> : null}
+      {actions ? <div className="shrink-0">{actions}</div> : null}
     </div>
   );
 }
