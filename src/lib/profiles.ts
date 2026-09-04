@@ -3,7 +3,11 @@ import { z } from "zod";
 import { isAllowedAvatar } from "@/lib/avatar";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { slugify } from "@/lib/catalog";
-import { getSql } from "@/lib/db";
+import {
+  roundRatingAverage,
+  shouldRevealPersonal,
+} from "@/lib/connect-helpers";
+import { getSql, type Sql } from "@/lib/db";
 import { USER_IMAGE_PATH_MAX } from "@/lib/upload-path";
 
 export type PublicProfile = {
@@ -12,6 +16,8 @@ export type PublicProfile = {
   imagePath: string;
   county: string;
   bio: string;
+  ratingAverage: number | null;
+  ratingCount: number;
 };
 
 export type PersonalProfile = {
@@ -62,14 +68,73 @@ const USERNAME = z
   .toLowerCase()
   .regex(/^[a-z0-9_]{3,24}$/, "Usernames are 3–24 letters, numbers, or _.");
 
-function publicOf(row: ProfileRow): PublicProfile {
+function publicOf(
+  row: ProfileRow,
+  rating: { average: number | null; count: number } = {
+    average: null,
+    count: 0,
+  },
+): PublicProfile {
   return {
     userId: row.user_id,
     username: row.username,
     imagePath: row.image_path,
     county: row.county,
     bio: row.bio,
+    ratingAverage: rating.average,
+    ratingCount: rating.count,
   };
+}
+
+async function loadRatings(
+  sql: Sql,
+  userIds: string[],
+): Promise<Map<string, { average: number | null; count: number }>> {
+  const map = new Map<string, { average: number | null; count: number }>();
+  for (const id of userIds) map.set(id, { average: null, count: 0 });
+  const unique = [...new Set(userIds.filter(Boolean))];
+  if (unique.length === 0) return map;
+  const placeholders = unique.map((_, index) => `$${index + 1}`).join(", ");
+  const rows = await sql.query<{
+    rated_user_id: string;
+    avg: string | number | null;
+    n: number;
+  }>(
+    `select rated_user_id, avg(stars) as avg, count(*)::int as n
+     from connection_ratings
+     where rated_user_id in (${placeholders})
+     group by rated_user_id`,
+    unique,
+  );
+  for (const row of rows) {
+    map.set(row.rated_user_id, {
+      average: roundRatingAverage(row.avg),
+      count: row.n,
+    });
+  }
+  return map;
+}
+
+export async function loadPublicProfiles(
+  sql: Sql,
+  userIds: string[],
+): Promise<Map<string, PublicProfile>> {
+  const unique = [...new Set(userIds.filter(Boolean))];
+  const byId = new Map<string, PublicProfile>();
+  if (unique.length === 0) return byId;
+  const placeholders = unique.map((_, index) => `$${index + 1}`).join(", ");
+  const rows = await sql.query<ProfileRow>(
+    `select * from profiles where user_id in (${placeholders})`,
+    unique,
+  );
+  const ratings = await loadRatings(
+    sql,
+    rows.map((row) => row.user_id),
+  );
+  for (const row of rows) {
+    byId.set(row.user_id, publicOf(row, ratings.get(row.user_id)));
+  }
+  return byId;
 }
 
 function personalOf(row: ProfileRow): PersonalProfile {
@@ -173,8 +238,9 @@ async function relationBetween(
      order by created_at desc`,
     [me, them],
   );
-  if (rows.some((row) => row.status === "accepted")) {
-    return { relation: "connected", inviteId: null };
+  const accepted = rows.find((row) => row.status === "accepted");
+  if (accepted) {
+    return { relation: "connected", inviteId: accepted.id };
   }
   const pending = rows.find((row) => row.status === "pending");
   if (!pending) return { relation: "none", inviteId: null };
@@ -322,7 +388,10 @@ export const getPublicProfile = createServerFn({ method: "POST" })
       `select * from profiles where username = $1 limit 1`,
       [data.username.toLowerCase()],
     );
-    return rows[0] ? publicOf(rows[0]) : null;
+    const row = rows[0];
+    if (!row) return null;
+    const ratings = await loadRatings(sql, [row.user_id]);
+    return publicOf(row, ratings.get(row.user_id));
   });
 
 export const getPublicByUserId = createServerFn({ method: "POST" })
@@ -333,7 +402,10 @@ export const getPublicByUserId = createServerFn({ method: "POST" })
       `select * from profiles where user_id = $1 limit 1`,
       [data.userId],
     );
-    return rows[0] ? publicOf(rows[0]) : null;
+    const row = rows[0];
+    if (!row) return null;
+    const ratings = await loadRatings(sql, [row.user_id]);
+    return publicOf(row, ratings.get(row.user_id));
   });
 
 export const getProfileView = createServerFn({ method: "POST" })
@@ -352,10 +424,10 @@ export const getProfileView = createServerFn({ method: "POST" })
       context.userId,
       row.user_id,
     );
-    const revealed = relation === "self" || relation === "connected";
+    const ratings = await loadRatings(sql, [row.user_id]);
     return {
-      public: publicOf(row),
-      personal: revealed ? personalOf(row) : null,
+      public: publicOf(row, ratings.get(row.user_id)),
+      personal: shouldRevealPersonal(relation) ? personalOf(row) : null,
       relation,
       pendingInviteId: relation === "pending-in" ? inviteId : null,
     };
@@ -386,10 +458,10 @@ export const getConnection = createServerFn({ method: "POST" })
       context.userId,
       row.user_id,
     );
-    const revealed = relation === "self" || relation === "connected";
+    const ratings = await loadRatings(sql, [row.user_id]);
     return {
-      public: publicOf(row),
-      personal: revealed ? personalOf(row) : null,
+      public: publicOf(row, ratings.get(row.user_id)),
+      personal: shouldRevealPersonal(relation) ? personalOf(row) : null,
       relation,
       pendingInviteId: relation === "pending-in" ? inviteId : null,
     };
@@ -463,7 +535,13 @@ export const listInvites = createServerFn({ method: "POST" })
         others,
       );
     }
-    const byId = new Map(profiles.map((row) => [row.user_id, publicOf(row)]));
+    const ratings = await loadRatings(
+      sql,
+      profiles.map((row) => row.user_id),
+    );
+    const byId = new Map(
+      profiles.map((row) => [row.user_id, publicOf(row, ratings.get(row.user_id))]),
+    );
     const incoming: InviteRow[] = [];
     const outgoing: InviteRow[] = [];
     const connected: InviteRow[] = [];
@@ -500,14 +578,28 @@ export const respondInvite = createServerFn({ method: "POST" })
     const sql = await getSql();
     await requireTerms(sql, context.userId);
     const status = data.accept ? "accepted" : "declined";
-    const rows = await sql.query<{ id: number }>(
+    const rows = await sql.query<{
+      id: number;
+      from_user_id: string;
+      to_user_id: string;
+      listing_id: number | null;
+    }>(
       `update connection_invites
        set status = $1
        where id = $2 and to_user_id = $3 and status = 'pending'
-       returning id`,
+       returning id, from_user_id, to_user_id, listing_id`,
       [status, data.id, context.userId],
     );
     if (!rows[0]) throw new Error("That invite is no longer open.");
+    if (data.accept) {
+      const { ensureThreadForAcceptedInvite } = await import("@/lib/messages");
+      await ensureThreadForAcceptedInvite(sql, {
+        id: rows[0].id,
+        fromUserId: rows[0].from_user_id,
+        toUserId: rows[0].to_user_id,
+        listingId: rows[0].listing_id,
+      });
+    }
     return { ok: true, status };
   });
 

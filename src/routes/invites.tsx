@@ -46,9 +46,9 @@ function InvitesList() {
       </p>
       <h1 className="mt-2 font-display text-4xl sm:text-5xl">Invites</h1>
       <p className="mt-3 max-w-xl text-base leading-relaxed text-muted">
-        Accepting a request is the only way real name, address, phone, and
-        email get shared. Until you press Accept request, neighbors only see
-        a username and picture.
+        Accepting a request opens a private message thread. Real name, address,
+        phone, and email stay private. Until you press Accept request, neighbors
+        only see a username and picture.
       </p>
 
       {!loaded ? (
@@ -89,9 +89,22 @@ function InvitesList() {
               <InviteCard key={invite.id} invite={invite} />
             ))}
           </InviteGroup>
-          <InviteGroup title="Connected" empty="No shared details yet.">
+          <InviteGroup title="Connected" empty="No connections yet.">
             {connected.map((invite) => (
-              <InviteCard key={invite.id} invite={invite} />
+              <InviteCard
+                key={invite.id}
+                invite={invite}
+                actions={
+                  <Button asChild size="sm" variant="outline">
+                    <Link
+                      to="/messages"
+                      search={{ with: invite.other.userId }}
+                    >
+                      Messages
+                    </Link>
+                  </Button>
+                }
+              />
             ))}
           </InviteGroup>
         </div>

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { FarmAvatar } from "@/components/farm-avatar";
+import { MessageThread } from "@/components/message-thread";
+import { NeighborRating } from "@/components/neighbor-rating";
 import { Button } from "@/components/ui/button";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import {
@@ -9,7 +11,6 @@ import {
   respondInvite,
   sendInvite,
   type ConnectionRelation,
-  type PersonalProfile,
   type PublicProfile,
 } from "@/lib/profiles";
 
@@ -28,7 +29,6 @@ export function ConnectPanel({
   const { user, isPending: authPending } = useCurrentUserState();
   const [relation, setRelation] = useState<ConnectionRelation>("none");
   const [pub, setPub] = useState<PublicProfile | null>(null);
-  const [personal, setPersonal] = useState<PersonalProfile | null>(null);
   const [pendingInviteId, setPendingInviteId] = useState<number | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -37,13 +37,11 @@ export function ConnectPanel({
       const view = await getConnection({ data: { userId } });
       setRelation(view.relation);
       setPub(view.public);
-      setPersonal(view.personal);
       setPendingInviteId(view.pendingInviteId);
       return;
     }
     const publicProfile = await getPublicByUserId({ data: { userId } });
     setPub(publicProfile);
-    setPersonal(null);
     setRelation("none");
   }
 
@@ -106,6 +104,13 @@ export function ConnectPanel({
           ) : (
             <p className="text-sm text-muted">On the board</p>
           )}
+          {pub ? (
+            <NeighborRating
+              className="mt-1"
+              average={pub.ratingAverage}
+              count={pub.ratingCount}
+            />
+          ) : null}
         </div>
       </div>
       {pub?.bio || fallbackNote ? (
@@ -116,33 +121,18 @@ export function ConnectPanel({
 
       {relation === "self" ? (
         <p className="mt-4 text-sm text-subtle">This is your card.</p>
-      ) : relation === "connected" && personal ? (
-        <div className="mt-4 grid gap-1 text-sm">
-          <p className="text-[12px] tracking-wide text-subtle uppercase">
-            Shared after they accepted
-          </p>
-          {personal.realName ? <p>{personal.realName}</p> : null}
-          {personal.place ? <p>{personal.place}</p> : null}
-          {personal.email ? (
-            <p>
-              <a className="underline-offset-2 hover:underline" href={`mailto:${personal.email}`}>
-                {personal.email}
-              </a>
-            </p>
-          ) : null}
-          {personal.phone ? (
-            <p>
-              <a className="underline-offset-2 hover:underline" href={`tel:${personal.phone}`}>
-                {personal.phone}
-              </a>
-            </p>
-          ) : null}
-        </div>
+      ) : relation === "connected" && user ? (
+        <MessageThread
+          otherUserId={userId}
+          listingId={listingId}
+          currentUserId={user.id}
+        />
       ) : !user ? (
         <div className="mt-4">
           <p className="text-sm leading-relaxed text-muted">
             Sign in to request a connection. Real name, address, phone, and
-            email stay hidden until they press Accept request.
+            email stay private. After they accept, you talk in a private
+            message thread.
           </p>
           <Button asChild className="mt-3 w-full">
             <Link to="/login">Sign in to request</Link>
@@ -151,8 +141,8 @@ export function ConnectPanel({
       ) : (
         <div className="mt-4">
           <p className="text-sm leading-relaxed text-muted">
-            Real name, address, phone, and email stay hidden until they press
-            Accept request.
+            Real name, address, phone, and email stay private. Accept opens a
+            private message thread — that is the contact channel.
           </p>
           {relation === "pending-in" ? (
             <Button className="mt-3 w-full" disabled={pending} onClick={() => void acceptRequest()}>

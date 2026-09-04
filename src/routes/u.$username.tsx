@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ConnectPanel } from "@/components/connect-panel";
 import { FarmAvatar } from "@/components/farm-avatar";
+import { NeighborRating } from "@/components/neighbor-rating";
 import { getProfileView, getPublicProfile, type ConnectionRelation, type PersonalProfile, type PublicProfile } from "@/lib/profiles";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 
@@ -72,11 +73,16 @@ function NeighborPage() {
             {pub.county ? `${pub.county} County` : "South Carolina"}
           </p>
           <h1 className="mt-1 font-display text-4xl">@{pub.username}</h1>
-          {personal?.realName ? (
+          {relation === "self" && personal?.realName ? (
             <p className="mt-1 text-sm text-muted">{personal.realName}</p>
           ) : (
-            <p className="mt-1 text-sm text-subtle">Real name hidden</p>
+            <p className="mt-1 text-sm text-subtle">Real name stays private</p>
           )}
+          <NeighborRating
+            className="mt-2"
+            average={pub.ratingAverage}
+            count={pub.ratingCount}
+          />
         </div>
       </div>
       {pub.bio ? (
@@ -90,16 +96,10 @@ function NeighborPage() {
           fallbackNote={
             relation === "connected" || relation === "self"
               ? undefined
-              : "Real name, address, phone, and email stay hidden until they press Accept request."
+              : "Real name, address, phone, and email stay private. Accept opens a private message thread."
           }
         />
       </div>
-
-      {personal && (relation === "self" || relation === "connected") ? (
-        <p className="mt-4 text-sm text-subtle">
-          You can see their private details because the invite was accepted.
-        </p>
-      ) : null}
     </div>
   );
 }

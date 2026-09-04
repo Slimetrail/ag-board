@@ -18,6 +18,7 @@ import { Route as LearnRouteImport } from './routes/learn'
 import { Route as LeasesRouteImport } from './routes/leases'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MarketRouteImport } from './routes/market'
+import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as NeedsRouteImport } from './routes/needs'
 import { Route as OfficeRouteImport } from './routes/office'
 import { Route as PostRouteImport } from './routes/post'
@@ -73,6 +74,11 @@ const LoginRoute = LoginRouteImport.update({
 const MarketRoute = MarketRouteImport.update({
   id: '/market',
   path: '/market',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MessagesRoute = MessagesRouteImport.update({
+  id: '/messages',
+  path: '/messages',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NeedsRoute = NeedsRouteImport.update({
@@ -141,6 +147,7 @@ export interface FileRoutesByFullPath {
   '/leases': typeof LeasesRoute
   '/login': typeof LoginRoute
   '/market': typeof MarketRoute
+  '/messages': typeof MessagesRoute
   '/needs': typeof NeedsRoute
   '/office': typeof OfficeRoute
   '/post': typeof PostRoute
@@ -163,6 +170,7 @@ export interface FileRoutesByTo {
   '/leases': typeof LeasesRoute
   '/login': typeof LoginRoute
   '/market': typeof MarketRoute
+  '/messages': typeof MessagesRoute
   '/needs': typeof NeedsRoute
   '/office': typeof OfficeRoute
   '/post': typeof PostRoute
@@ -186,6 +194,7 @@ export interface FileRoutesById {
   '/leases': typeof LeasesRoute
   '/login': typeof LoginRoute
   '/market': typeof MarketRoute
+  '/messages': typeof MessagesRoute
   '/needs': typeof NeedsRoute
   '/office': typeof OfficeRoute
   '/post': typeof PostRoute
@@ -210,6 +219,7 @@ export interface FileRouteTypes {
     | '/leases'
     | '/login'
     | '/market'
+    | '/messages'
     | '/needs'
     | '/office'
     | '/post'
@@ -232,6 +242,7 @@ export interface FileRouteTypes {
     | '/leases'
     | '/login'
     | '/market'
+    | '/messages'
     | '/needs'
     | '/office'
     | '/post'
@@ -254,6 +265,7 @@ export interface FileRouteTypes {
     | '/leases'
     | '/login'
     | '/market'
+    | '/messages'
     | '/needs'
     | '/office'
     | '/post'
@@ -277,6 +289,7 @@ export interface RootRouteChildren {
   LeasesRoute: typeof LeasesRoute
   LoginRoute: typeof LoginRoute
   MarketRoute: typeof MarketRoute
+  MessagesRoute: typeof MessagesRoute
   NeedsRoute: typeof NeedsRoute
   OfficeRoute: typeof OfficeRoute
   PostRoute: typeof PostRoute
@@ -352,6 +365,13 @@ declare module '@tanstack/react-router' {
       path: '/market'
       fullPath: '/market'
       preLoaderRoute: typeof MarketRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/messages': {
+      id: '/messages'
+      path: '/messages'
+      fullPath: '/messages'
+      preLoaderRoute: typeof MessagesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/needs': {
@@ -454,6 +474,7 @@ const rootRouteChildren: RootRouteChildren = {
   LeasesRoute: LeasesRoute,
   LoginRoute: LoginRoute,
   MarketRoute: MarketRoute,
+  MessagesRoute: MessagesRoute,
   NeedsRoute: NeedsRoute,
   OfficeRoute: OfficeRoute,
   PostRoute: PostRoute,

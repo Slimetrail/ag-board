@@ -99,7 +99,8 @@ function AboutPage() {
           </li>
           <li>
             Username and picture are public. Real name, address, phone, and
-            email stay hidden until someone presses Accept request.
+            email stay private. After Accept, you talk in a private message
+            thread — that is the contact channel.
           </li>
           <li>
             The app is not a party to any trade. If you connect, you take

@@ -56,8 +56,13 @@ export function NoteForm({ listingId }: { listingId: number }) {
           setBody("");
           toast("Note pinned to the listing");
           await router.invalidate();
-        } catch {
-          toast("Could not post that note. Try a longer message.");
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "";
+          toast(
+            message.includes("private message")
+              ? message
+              : "Could not post that note. Try a longer message.",
+          );
         } finally {
           setPending(false);
         }
@@ -75,8 +80,9 @@ export function NoteForm({ listingId }: { listingId: number }) {
           maxLength={400}
         />
         <p className="text-xs text-subtle">
-          Posts as @{username || "you"}. Don't put a name, address, phone,
-          or email here.
+          Public note, posted as @{username || "you"}. Do not put a name,
+          address, phone, or email here — those belong in a private message
+          after you connect.
         </p>
       </div>
       <Button type="submit" disabled={pending || !username}>
