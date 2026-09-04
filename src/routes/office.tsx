@@ -10,7 +10,6 @@ import {
   loginAdmin,
   logoutAdmin,
 } from "@/lib/admin";
-import { signIn } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { ALL_STATE_CODES, STATE_META, type StateCode } from "@/lib/geo";
 import {
@@ -90,33 +89,8 @@ function AdminLogin({ onDone }: { onDone: () => void }) {
       </p>
       <h1 className="mt-2 font-display text-4xl">Office login</h1>
       <p className="mt-4 text-sm leading-relaxed text-muted">
-        Only the owner. Sign in with X or the stored office email. No other
+        Only the owner. Sign in with the office email and password. No other
         account can open this desk.
-      </p>
-      <Button
-        type="button"
-        variant="outline"
-        className="mt-8 w-full"
-        disabled={pending}
-        onClick={() => {
-          setPending(true);
-          setError(null);
-          void signIn("grok-x", { callbackURL: "/office" }).catch(
-            (err: unknown) => {
-              setError(
-                err instanceof Error
-                  ? err.message
-                  : "X sign-in didn't finish. Try the office email.",
-              );
-              setPending(false);
-            },
-          );
-        }}
-      >
-        Continue with X
-      </Button>
-      <p className="mt-6 text-center text-xs tracking-wide text-subtle uppercase">
-        Or office email
       </p>
       <form
         className="mt-4 grid gap-4"
@@ -215,14 +189,6 @@ function OfficeDesk() {
           }}
         >
           Sign out of office
-        </Button>
-        <Button
-          variant="ghost"
-          onClick={() => {
-            void signIn("grok-x", { callbackURL: "/office" }).catch(() => undefined);
-          }}
-        >
-          Link X
         </Button>
       </div>
       <p className="mt-4">
