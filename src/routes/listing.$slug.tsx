@@ -3,6 +3,7 @@ import { ArrowLeft, MapPin } from "lucide-react";
 import { ConnectPanel } from "@/components/connect-panel";
 import { ExampleMark, isExampleListing } from "@/components/example-mark";
 import { ListingGrid } from "@/components/listing-grid";
+import { ListingPhotoEditor } from "@/components/listing-photo-editor";
 import { ListingPrice } from "@/components/listing-price";
 import { NoteForm } from "@/components/note-form";
 import { PosterStatus } from "@/components/poster-status";
@@ -66,6 +67,13 @@ function ListingPage() {
               </p>
             ) : null}
           </div>
+          {canEdit ? (
+            <ListingPhotoEditor
+              listingId={listing.id}
+              imagePath={listing.imagePath}
+              onSaved={() => void router.invalidate()}
+            />
+          ) : null}
           <div className="mt-8">
             <h2 className="font-display text-2xl">The listing</h2>
             {listing.decidingAt ? (

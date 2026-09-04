@@ -3,12 +3,13 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CountySelect } from "@/components/county-select";
 import { FarmAvatar } from "@/components/farm-avatar";
+import { PhotoUploadButton } from "@/components/photo-picker";
 import { RequireUse } from "@/components/require-use";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { LISTING_IMAGES } from "@/lib/catalog";
+import { isCustomPhotoPath } from "@/lib/avatar";
 import { isCountyInState } from "@/lib/geo";
 import {
   checkUsername,
@@ -16,7 +17,6 @@ import {
   updateOwnProfile,
   type OwnProfile,
 } from "@/lib/profiles";
-import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/profile")({
   component: ProfilePage,
@@ -83,7 +83,9 @@ function ProfileEditor() {
             data: {
               username: profile.username,
               realName: profile.realName,
-              imagePath: profile.imagePath,
+              imagePath: isCustomPhotoPath(profile.imagePath)
+                ? profile.imagePath
+                : "",
               county: isCountyInState(profile.county, "SC") ? profile.county : "",
               email: profile.email,
               phone: profile.phone,
@@ -139,54 +141,11 @@ function ProfileEditor() {
           />
         </div>
 
-        <fieldset>
-          <legend className="text-[13px] font-medium tracking-wide text-muted">
-            Picture (public)
-          </legend>
-          <p className="mt-1 mb-3 text-sm text-subtle">
-            Pick a farm photo, or keep the picture from Google or X.
-          </p>
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-            {profile.imagePath.startsWith("https://") ? (
-              <button
-                type="button"
-                onClick={() => setProfile({ ...profile, imagePath: profile.imagePath })}
-                className="ring-2 ring-primary ring-offset-2 ring-offset-bg overflow-hidden rounded-lg"
-                aria-label="Sign-in picture"
-              >
-                <img src={profile.imagePath} alt="" className="aspect-4/3 w-full object-cover" />
-              </button>
-            ) : null}
-            <button
-              type="button"
-              onClick={() => setProfile({ ...profile, imagePath: "" })}
-              className={cn(
-                "grid aspect-4/3 place-items-center rounded-lg bg-wash text-sm",
-                !profile.imagePath
-                  ? "ring-2 ring-primary ring-offset-2 ring-offset-bg"
-                  : "shadow-[var(--shadow-card)]",
-              )}
-            >
-              Initials
-            </button>
-            {LISTING_IMAGES.slice(0, 12).map((image) => (
-              <button
-                key={image.path}
-                type="button"
-                onClick={() => setProfile({ ...profile, imagePath: image.path })}
-                className={cn(
-                  "overflow-hidden rounded-lg",
-                  profile.imagePath === image.path
-                    ? "ring-2 ring-primary ring-offset-2 ring-offset-bg"
-                    : "shadow-[var(--shadow-card)]",
-                )}
-                aria-label={image.label}
-              >
-                <img src={image.path} alt="" className="aspect-4/3 w-full object-cover" />
-              </button>
-            ))}
-          </div>
-        </fieldset>
+        <ProfilePhotoField
+          name={profile.username}
+          imagePath={profile.imagePath}
+          onChange={(imagePath) => setProfile({ ...profile, imagePath })}
+        />
 
         <div className="rounded-xl border border-border bg-wash/50 p-5">
           <p className="text-[13px] font-medium tracking-wide text-muted uppercase">
@@ -343,5 +302,52 @@ function UsernameField({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function ProfilePhotoField({
+  name,
+  imagePath,
+  onChange,
+}: {
+  name: string;
+  imagePath: string;
+  onChange: (path: string) => void;
+}) {
+  const custom = isCustomPhotoPath(imagePath);
+  const usingInitials = !custom;
+
+  return (
+    <fieldset>
+      <legend className="text-[13px] font-medium tracking-wide text-muted">
+        Picture (public)
+      </legend>
+      <p className="mt-1 mb-3 text-sm text-subtle">
+        Upload your own photo, or show initials from your username. No stock
+        pictures.
+      </p>
+      <div className="flex flex-wrap items-center gap-4">
+        <FarmAvatar name={name} src={imagePath} className="size-20" />
+        <div className="min-w-0 flex-1 grid gap-2 sm:max-w-sm">
+          <PhotoUploadButton
+            onUploaded={onChange}
+            label={custom ? "Replace with your photo" : "Upload your photo"}
+          />
+          <Button
+            type="button"
+            variant={usingInitials ? "default" : "outline"}
+            onClick={() => onChange("")}
+            aria-pressed={usingInitials}
+          >
+            Use initials
+          </Button>
+        </div>
+      </div>
+      <p className="mt-3 text-sm text-muted">
+        {usingInitials
+          ? `Showing initials from @${name}.`
+          : "Using the photo you uploaded (or the one from sign-in)."}
+      </p>
+    </fieldset>
   );
 }
