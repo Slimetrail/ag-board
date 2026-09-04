@@ -5,6 +5,12 @@ import {
   PHOTO_MIN_EDGE,
   PHOTO_SOURCE_MAX_BYTES,
 } from "./photo-limits.ts";
+import {
+  clampPhotoFrame,
+  cropRect,
+  integerCrop,
+  type PhotoFrame,
+} from "./photo-frame.ts";
 
 export {
   PHOTO_MAX_BYTES,
@@ -80,20 +86,49 @@ async function decodePhoto(file: File): Promise<ImageBitmap> {
   }
 }
 
-function encodeJpeg(bitmap: ImageBitmap, edge: number, quality: number): string {
-  const scale = Math.min(1, edge / Math.max(bitmap.width, bitmap.height));
-  const width = Math.max(1, Math.round(bitmap.width * scale));
-  const height = Math.max(1, Math.round(bitmap.height * scale));
+function encodeJpeg(
+  draw: (ctx: CanvasRenderingContext2D, width: number, height: number) => void,
+  sourceWidth: number,
+  sourceHeight: number,
+  edge: number,
+  quality: number,
+): string {
+  const scale = Math.min(1, edge / Math.max(sourceWidth, sourceHeight));
+  const width = Math.max(1, Math.round(sourceWidth * scale));
+  const height = Math.max(1, Math.round(sourceHeight * scale));
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Could not read that photo.");
-  ctx.drawImage(bitmap, 0, 0, width, height);
+  draw(ctx, width, height);
   return canvas.toDataURL("image/jpeg", quality);
 }
 
-export async function fileToJpegDataUrl(file: File): Promise<string> {
+function jpegUnderCap(
+  draw: (ctx: CanvasRenderingContext2D, width: number, height: number) => void,
+  sourceWidth: number,
+  sourceHeight: number,
+): string {
+  let edge = Math.min(PHOTO_MAX_EDGE, Math.max(sourceWidth, sourceHeight));
+  let quality = 0.84;
+  for (;;) {
+    const dataUrl = encodeJpeg(draw, sourceWidth, sourceHeight, edge, quality);
+    if (dataUrlByteLength(dataUrl) <= PHOTO_MAX_BYTES) {
+      return dataUrl;
+    }
+    const next = nextJpegSettings(edge, quality);
+    if (!next) {
+      throw new Error(
+        `Could not shrink that photo under ${PHOTO_MAX_LABEL}. Try another shot.`,
+      );
+    }
+    edge = next.edge;
+    quality = next.quality;
+  }
+}
+
+export function assertPhotoFile(file: File): void {
   if (file.size < 32) {
     throw new Error("That file is empty.");
   }
@@ -105,31 +140,64 @@ export async function fileToJpegDataUrl(file: File): Promise<string> {
   if (file.type && !file.type.startsWith("image/")) {
     throw new Error("That file is not a photo.");
   }
+}
 
-  let bitmap: ImageBitmap;
+async function bitmapFromPhotoFile(file: File): Promise<ImageBitmap> {
+  assertPhotoFile(file);
   try {
-    bitmap = await decodePhoto(file);
+    return await decodePhoto(file);
   } catch {
     throw new Error("Could not read that photo. Try a JPEG or PNG.");
   }
+}
 
+export async function fileToJpegDataUrl(file: File): Promise<string> {
+  const bitmap = await bitmapFromPhotoFile(file);
   try {
-    let edge = Math.min(PHOTO_MAX_EDGE, Math.max(bitmap.width, bitmap.height));
-    let quality = 0.84;
-    for (;;) {
-      const dataUrl = encodeJpeg(bitmap, edge, quality);
-      if (dataUrlByteLength(dataUrl) <= PHOTO_MAX_BYTES) {
-        return dataUrl;
-      }
-      const next = nextJpegSettings(edge, quality);
-      if (!next) {
-        throw new Error(
-          `Could not shrink that photo under ${PHOTO_MAX_LABEL}. Try another shot.`,
-        );
-      }
-      edge = next.edge;
-      quality = next.quality;
-    }
+    return jpegUnderCap(
+      (ctx, width, height) => ctx.drawImage(bitmap, 0, 0, width, height),
+      bitmap.width,
+      bitmap.height,
+    );
+  } finally {
+    bitmap.close();
+  }
+}
+
+/** Crop to the chosen frame, then compress with the same 3 MB JPEG path. */
+export async function fileToFramedJpegDataUrl(
+  file: File,
+  aspect: number,
+  frame: PhotoFrame,
+): Promise<string> {
+  const bitmap = await bitmapFromPhotoFile(file);
+  try {
+    const rect = integerCrop(
+      bitmap.width,
+      bitmap.height,
+      cropRect(
+        bitmap.width,
+        bitmap.height,
+        aspect,
+        clampPhotoFrame(bitmap.width, bitmap.height, aspect, frame),
+      ),
+    );
+    return jpegUnderCap(
+      (ctx, width, height) =>
+        ctx.drawImage(
+          bitmap,
+          rect.x,
+          rect.y,
+          rect.width,
+          rect.height,
+          0,
+          0,
+          width,
+          height,
+        ),
+      rect.width,
+      rect.height,
+    );
   } finally {
     bitmap.close();
   }

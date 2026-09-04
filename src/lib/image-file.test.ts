@@ -1,7 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
   assertJpegUnderCap,
+  assertPhotoFile,
   dataUrlByteLength,
   nextJpegSettings,
   photoUserError,
@@ -11,6 +14,7 @@ import {
   PHOTO_MAX_BYTES,
   PHOTO_MAX_LABEL,
   PHOTO_MIN_EDGE,
+  PHOTO_SOURCE_MAX_BYTES,
 } from "./photo-limits.ts";
 
 describe("photo size cap", () => {
@@ -72,5 +76,32 @@ describe("assertJpegUnderCap", () => {
   it("rejects a data URL over the 3 MB cap", () => {
     const over = `data:image/jpeg;base64,${"A".repeat(4_200_000)}`;
     assert.throws(() => assertJpegUnderCap(over), /3 MB/);
+  });
+});
+
+describe("assertPhotoFile", () => {
+  it("rejects an empty file before the adjust step", () => {
+    assert.throws(() => assertPhotoFile(new File(["x"], "empty.jpg")), /empty/i);
+  });
+
+  it("rejects a non-image type", () => {
+    const file = new File([new Uint8Array(64)], "notes.txt", { type: "text/plain" });
+    assert.throws(() => assertPhotoFile(file), /not a photo/i);
+  });
+
+  it("rejects a source file over the memory guard", () => {
+    const file = new File(["ok"], "huge.jpg", { type: "image/jpeg" });
+    Object.defineProperty(file, "size", { value: PHOTO_SOURCE_MAX_BYTES + 1 });
+    assert.throws(() => assertPhotoFile(file), /too large/i);
+  });
+});
+
+describe("framed JPEG encode", () => {
+  it("crops then uses the same 3 MB compression loop", async () => {
+    const source = await readFile(join(process.cwd(), "src/lib/image-file.ts"), "utf8");
+    assert.match(source, /export async function fileToFramedJpegDataUrl/);
+    assert.match(source, /jpegUnderCap/);
+    assert.match(source, /PHOTO_MAX_BYTES/);
+    assert.match(source, /cropRect/);
   });
 });
