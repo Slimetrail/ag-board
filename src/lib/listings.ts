@@ -4,12 +4,14 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import {
   CATEGORIES,
+  CATEGORY_META,
   DEAL_TYPES,
   LISTING_IMAGES,
   slugify,
   type Category,
   type DealType,
 } from "@/lib/catalog";
+import { resolveCategoryCover } from "@/lib/category-cover";
 import { SEED_LISTINGS, SEED_NOTES } from "@/lib/seed-data";
 import { isCountyInState, placeLabel } from "@/lib/geo";
 import { isUserUploadPath } from "@/lib/upload-path";
@@ -49,6 +51,7 @@ export type BoardNote = {
 export type CategoryCount = {
   category: Category;
   count: number;
+  coverImage: string;
 };
 
 type ListingRow = {
@@ -298,18 +301,47 @@ export const categoryCounts = createServerFn({ method: "POST" }).handler(
       await ensureSeed();
       const sql = await getSql();
       await expireStaleDeciding(sql);
-      const rows = await sql.query<{ category: string; count: number }>(
-        `select category, count(*)::int as count from listings
-         where available = true group by category`,
+      const rows = await sql.query<{
+        category: string;
+        count: number;
+        cover_image: string | null;
+      }>(
+        `select
+           counts.category,
+           counts.count,
+           covers.image_path as cover_image
+         from (
+           select category, count(*)::int as count
+           from listings
+           where available = true
+           group by category
+         ) counts
+         left join (
+           select distinct on (category) category, image_path
+           from listings
+           where available = true
+             and image_path not like '/images/%'
+             and length(trim(image_path)) > 0
+           order by category, created_at desc
+         ) covers on covers.category = counts.category`,
       );
-      return rows.map(
-        (row): CategoryCount => ({
-          category: row.category as Category,
-          count: row.count,
-        }),
+      const byCategory = new Map(
+        rows.map((row) => [row.category as Category, row]),
       );
+      return CATEGORIES.map((category): CategoryCount => {
+        const row = byCategory.get(category);
+        return {
+          category,
+          count: row?.count ?? 0,
+          coverImage: resolveCategoryCover(category, row?.cover_image),
+        };
+      });
     } catch {
-      return [];
+      return CATEGORIES.map((category): CategoryCount => ({
+        category,
+        count: 0,
+        coverImage: CATEGORY_META[category].image,
+      }));
     }
   },
 );

@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Search, X } from "lucide-react";
+import { CategoryTiles } from "@/components/category-tiles";
 import { CountySelect } from "@/components/county-select";
 import { ListingGrid, ViewToggle } from "@/components/listing-grid";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ import {
   type DealType,
 } from "@/lib/catalog";
 import { isCountyInState, isStateCode } from "@/lib/geo";
-import { listListings } from "@/lib/listings";
+import { categoryCounts, listListings } from "@/lib/listings";
 import { cn } from "@/lib/utils";
 
 export type MarketSearch = {
@@ -45,25 +46,28 @@ export const Route = createFileRoute("/market")({
   loaderDeps: ({ search }) => search,
   loader: async ({ deps }) => {
     try {
-      const listings = await listListings({
-        data: {
-          q: deps.q,
-          category: deps.cat,
-          dealType: deps.deal,
-          county: deps.county,
-          state: deps.state ?? "SC",
-        },
-      });
-      return { listings };
+      const [listings, counts] = await Promise.all([
+        listListings({
+          data: {
+            q: deps.q,
+            category: deps.cat,
+            dealType: deps.deal,
+            county: deps.county,
+            state: deps.state ?? "SC",
+          },
+        }),
+        categoryCounts(),
+      ]);
+      return { listings, counts };
     } catch {
-      return { listings: [] };
+      return { listings: [], counts: [] };
     }
   },
   component: MarketPage,
 });
 
 function MarketPage() {
-  const { listings } = Route.useLoaderData();
+  const { listings, counts } = Route.useLoaderData();
   const search = Route.useSearch();
   const [draft, setDraft] = useState(search.q ?? "");
   const navigate = Route.useNavigate();
@@ -134,6 +138,10 @@ function MarketPage() {
           <Button type="submit">Search</Button>
         </form>
       </div>
+
+      {!search.cat ? (
+        <CategoryTiles counts={counts} variant="compact" className="mt-8" />
+      ) : null}
 
       <div className="mt-6 flex flex-wrap gap-2">
         <FilterChip

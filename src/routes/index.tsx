@@ -1,11 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowRight, Play } from "lucide-react";
+import { CategoryTiles } from "@/components/category-tiles";
 import { CountySelect } from "@/components/county-select";
 import { ListingGrid, ViewToggle } from "@/components/listing-grid";
 import { Button } from "@/components/ui/button";
 import { useBoardStore } from "@/lib/board-store";
-import { CATEGORIES, CATEGORY_META } from "@/lib/catalog";
 import { isCountyInState } from "@/lib/geo";
 import { categoryCounts, listListings } from "@/lib/listings";
 import { TUTORIALS } from "@/lib/tutorials";
@@ -36,9 +36,6 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   const { featured, counts, shared, leases, needs } = Route.useLoaderData();
-  const countMap = Object.fromEntries(
-    counts.map((row) => [row.category, row.count]),
-  ) as Record<string, number>;
 
   return (
     <div>
@@ -102,39 +99,7 @@ function Home() {
         <h2 className="mt-2 font-display text-3xl sm:text-4xl">
           What South Carolina trades
         </h2>
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {CATEGORIES.map((cat) => {
-            const meta = CATEGORY_META[cat];
-            return (
-              <Link
-                key={cat}
-                to="/market"
-                search={{ cat }}
-                className="group overflow-hidden rounded-xl bg-surface shadow-[var(--shadow-card)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-card-hover)]"
-              >
-                <div className="relative h-36 overflow-hidden">
-                  <img
-                    src={meta.image}
-                    alt=""
-                    className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-                  />
-                </div>
-                <div className="p-4">
-                  <p className="text-[12px] tracking-wide text-subtle uppercase">
-                    {meta.kicker}
-                  </p>
-                  <h3 className="mt-1 font-display text-2xl">{meta.label}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-muted">
-                    {meta.blurb}
-                  </p>
-                  <p className="mt-3 text-xs tabular-nums text-subtle">
-                    {countMap[cat] ?? 0} on the board
-                  </p>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
+        <CategoryTiles counts={counts} className="mt-8" />
       </section>
 
       <section className="border-y border-border bg-surface/60">
