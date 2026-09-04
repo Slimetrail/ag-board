@@ -185,7 +185,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
           </div>
           <p className="text-xs text-subtle">
             The board is not a party to any trade. Look freely. Sign in to post
-            or request a connection.
+            or request a connection. Built with Grok.
           </p>
         </div>
       </footer>
