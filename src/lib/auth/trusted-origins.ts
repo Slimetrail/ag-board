@@ -6,7 +6,6 @@
  * `trustedOrigins`. Production on Vercel may have `BETTER_AUTH_URL` unset, so
  * this module always unions Vercel system hosts and a known public alias.
  */
-import { PREVIEW_ALLOWED_HOSTS } from "./preview";
 
 /** Local `npm run dev` (port 8080 contract). */
 export const LOCAL_DEV_ORIGINS: string[] = [
@@ -71,7 +70,7 @@ function uniqueOrigins(values: Array<string | undefined>): string[] {
  * and always unions Vercel production / deployment hosts plus the known alias.
  */
 export function resolveTrustedOrigins(env: AuthOriginEnv = {}): string[] {
-  const previewAllowedHosts = env.previewAllowedHosts ?? PREVIEW_ALLOWED_HOSTS;
+  const previewAllowedHosts = env.previewAllowedHosts ?? [];
   const existing = env.betterAuthUrl
     ? [env.betterAuthUrl, ...LOCAL_DEV_ORIGINS]
     : [
@@ -102,9 +101,7 @@ export function resolveAuthBaseURL(
 ): string | DynamicAuthBaseURL {
   if (env.betterAuthUrl) return env.betterAuthUrl;
 
-  const previewAllowedHosts = [
-    ...(env.previewAllowedHosts ?? PREVIEW_ALLOWED_HOSTS),
-  ];
+  const previewAllowedHosts = [...(env.previewAllowedHosts ?? [])];
 
   if (env.vercelEnv === "production") {
     return (
