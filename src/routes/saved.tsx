@@ -5,7 +5,7 @@ import { ListingGrid, ViewToggle } from "@/components/listing-grid";
 import { Button } from "@/components/ui/button";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { useBoardStore } from "@/lib/board-store";
-import { CATEGORY_META, DEAL_META } from "@/lib/catalog";
+import { CATEGORY_META, listingDealBadge } from "@/lib/catalog";
 import {
   deleteOwnDraft,
   listListings,
@@ -181,7 +181,7 @@ function DraftRow({
         <h3 className="mt-0.5 font-display text-xl leading-snug">{title}</h3>
         <p className="mt-1 text-sm text-muted">
           {CATEGORY_META[listing.category].label} ·{" "}
-          {DEAL_META[listing.dealType].label}
+          {listingDealBadge(listing)}
           {listing.summary.trim() ? ` · ${listing.summary}` : ""}
         </p>
         <p className="mt-1 text-xs text-subtle">

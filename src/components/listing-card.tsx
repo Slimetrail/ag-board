@@ -3,7 +3,7 @@ import { MapPin } from "lucide-react";
 import { ExampleMark, isExampleListing } from "@/components/example-mark";
 import { ListingPrice } from "@/components/listing-price";
 import { Badge } from "@/components/ui/badge";
-import { CATEGORY_META, DEAL_META } from "@/lib/catalog";
+import { CATEGORY_META, listingDealBadge } from "@/lib/catalog";
 import { formatRegion } from "@/lib/geo";
 import type { Listing } from "@/lib/listings";
 import { cn, timeAgo } from "@/lib/utils";
@@ -44,7 +44,7 @@ export function ListingCard({
             <h3 className="font-display text-xl leading-snug text-fg">
               {listing.title}
             </h3>
-            <Badge variant="outline">{DEAL_META[listing.dealType].label}</Badge>
+            <Badge variant="outline">{listingDealBadge(listing)}</Badge>
           </div>
           {deciding ? (
             <p className="mt-1 text-sm font-bold tracking-wide text-alert uppercase">
@@ -91,7 +91,7 @@ export function ListingCard({
           </p>
         ) : null}
         <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-3">
-          <Badge variant="outline">{DEAL_META[listing.dealType].label}</Badge>
+          <Badge variant="outline">{listingDealBadge(listing)}</Badge>
           <span className="rounded-full bg-fg/70 px-2 py-0.5 text-[11px] font-medium text-primary-fg backdrop-blur-sm">
             {CATEGORY_META[listing.category].label}
           </span>

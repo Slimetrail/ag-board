@@ -12,7 +12,7 @@ import { InterestedButton } from "@/components/interested-button";
 import { SaveButton } from "@/components/save-button";
 import { Badge } from "@/components/ui/badge";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { CATEGORY_META, DEAL_META } from "@/lib/catalog";
+import { CATEGORY_META, listingDealBadge } from "@/lib/catalog";
 import { formatRegion, parseRegion } from "@/lib/geo";
 import { getListing } from "@/lib/listings";
 import { timeAgo } from "@/lib/utils";
@@ -100,7 +100,7 @@ function ListingPage() {
         <aside>
           <div className="rounded-xl bg-surface p-5 shadow-[var(--shadow-card)] sm:p-6">
             <div className="flex flex-wrap gap-2">
-              <Badge>{DEAL_META[listing.dealType].label}</Badge>
+              <Badge>{listingDealBadge(listing)}</Badge>
               <Badge variant="muted">
                 {CATEGORY_META[listing.category].label}
               </Badge>

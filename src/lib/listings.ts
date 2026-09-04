@@ -7,6 +7,7 @@ import {
   CATEGORIES,
   CATEGORY_META,
   DEAL_TYPES,
+  resolveOfferDealType,
   slugify,
   type Category,
   type DealType,
@@ -97,7 +98,7 @@ function mapListing(row: ListingRow): Listing {
     id: row.id,
     slug: row.slug,
     category: row.category as Category,
-    dealType: row.deal_type as DealType,
+    dealType: resolveOfferDealType(row.deal_type, row.price_label),
     title: row.title,
     summary: row.summary,
     description: row.description,
@@ -471,6 +472,7 @@ export const createListing = createServerFn({ method: "POST" })
     await requireOpenState(sql, state);
     const region = placeLabel(data.county, state);
     const tags = data.tags ?? "";
+    const dealType = resolveOfferDealType(data.dealType, data.priceLabel);
     if (data.draftId) {
       const draft = await ownedDraft(sql, data.draftId, context.userId);
       if (!draft) throw new Error("That draft is gone.");
@@ -485,7 +487,7 @@ export const createListing = createServerFn({ method: "POST" })
          returning *`,
         [
           data.category,
-          data.dealType,
+          dealType,
           data.title,
           data.summary,
           data.description,
@@ -518,7 +520,7 @@ export const createListing = createServerFn({ method: "POST" })
       [
         slug,
         data.category,
-        data.dealType,
+        dealType,
         data.title,
         data.summary,
         data.description,
@@ -566,6 +568,7 @@ export const saveListingDraft = createServerFn({ method: "POST" })
     const quantity = data.quantity.trim();
     const farmNote = data.farmNote.trim();
     const tags = data.tags.trim();
+    const dealType = resolveOfferDealType(data.dealType, priceLabel);
     if (data.draftId) {
       const draft = await ownedDraft(sql, data.draftId, context.userId);
       if (!draft) throw new Error("That draft is gone.");
@@ -579,7 +582,7 @@ export const saveListingDraft = createServerFn({ method: "POST" })
          returning *`,
         [
           data.category,
-          data.dealType,
+          dealType,
           title,
           summary,
           description,
@@ -612,7 +615,7 @@ export const saveListingDraft = createServerFn({ method: "POST" })
       [
         slug,
         data.category,
-        data.dealType,
+        dealType,
         title,
         summary,
         description,
@@ -750,13 +753,15 @@ export const updateListingOffer = createServerFn({ method: "POST" })
     if (listing.user_id !== context.userId) {
       throw new Error("You can't change that listing.");
     }
+    const dealType = resolveOfferDealType(listing.deal_type, data.priceLabel);
     const updated = await sql.query<ListingRow>(
       `update listings
        set price_label = $1,
-           quantity = coalesce($2, quantity)
-       where id = $3
+           quantity = coalesce($2, quantity),
+           deal_type = $3
+       where id = $4
        returning *`,
-      [data.priceLabel, data.quantity ?? null, data.listingId],
+      [data.priceLabel, data.quantity ?? null, dealType, data.listingId],
     );
     return mapListing(updated[0]!);
   });

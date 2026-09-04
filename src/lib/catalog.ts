@@ -67,14 +67,62 @@ export const CATEGORY_META: Record<
   },
 };
 
-export const DEAL_META: Record<DealType, { label: string; short: string }> = {
-  sale: { label: "For sale", short: "Sale" },
-  trade: { label: "Open to trade", short: "Trade" },
-  share: { label: "Free / share", short: "Free" },
-  lease: { label: "For lease", short: "Lease" },
-  seeking: { label: "Looking for", short: "Seeking" },
-  offered: { label: "Skill offered", short: "Offered" },
+export const DEAL_META: Record<
+  DealType,
+  { label: string; short: string; badge: string }
+> = {
+  sale: { label: "For sale", short: "Sale", badge: "For sale" },
+  trade: { label: "Open to trade", short: "Trade", badge: "Trade" },
+  share: { label: "Free / share", short: "Free", badge: "Free" },
+  lease: { label: "For lease", short: "Lease", badge: "For lease" },
+  seeking: { label: "Looking for", short: "Seeking", badge: "Seeking" },
+  offered: { label: "Skill offered", short: "Offered", badge: "Offered" },
 };
+
+export function isDealType(value: string | null | undefined): value is DealType {
+  return DEAL_TYPES.includes(value as DealType);
+}
+
+/** Price text that means the listing is given away, not sold. */
+export function isFreePriceLabel(priceLabel: string): boolean {
+  const text = priceLabel.trim().toLowerCase();
+  if (!text) return false;
+  return /^(free|no charge|giveaway)\b/.test(text) || text === "borrow it";
+}
+
+function isTradePriceLabel(priceLabel: string): boolean {
+  return /^(trade|swap|barter)\b/.test(priceLabel.trim().toLowerCase());
+}
+
+function isSeekingPriceLabel(priceLabel: string): boolean {
+  return /^(looking for|wanted|seeking)\b/.test(priceLabel.trim().toLowerCase());
+}
+
+/**
+ * Offer type for badges and stored `deal_type`.
+ * The post form defaults to "sale", so a Free / Trade / Seeking price wins
+ * over that default. An explicit non-sale deal type is kept.
+ */
+export function resolveOfferDealType(
+  dealType: string | null | undefined,
+  priceLabel: string,
+): DealType {
+  const known = isDealType(dealType) ? dealType : "sale";
+  if (known !== "sale") return known;
+  if (isFreePriceLabel(priceLabel)) return "share";
+  if (isTradePriceLabel(priceLabel)) return "trade";
+  if (isSeekingPriceLabel(priceLabel)) return "seeking";
+  return "sale";
+}
+
+/** Tile / list / detail badge copy for the listing's offer type. */
+export function listingDealBadge(listing: {
+  dealType: string;
+  priceLabel: string;
+}): string {
+  return DEAL_META[resolveOfferDealType(listing.dealType, listing.priceLabel)]
+    .badge;
+}
 
 export function slugify(value: string) {
   const base = value
