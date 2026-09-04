@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { getSql } from "@/lib/db";
+import { dbSource, getSql } from "@/lib/db";
+import { shouldSeedListings } from "@/lib/seed-policy";
 import {
   CATEGORIES,
   CATEGORY_META,
@@ -143,6 +144,8 @@ async function expireStaleDeciding(sql: Awaited<ReturnType<typeof getSql>>) {
 }
 
 async function ensureSeed() {
+  if (!shouldSeedListings(dbSource)) return;
+
   const globalRef = globalThis as SeedGlobal;
   if (!globalRef.__acreSeedV6__) {
     globalRef.__acreSeedV6__ = (async () => {
