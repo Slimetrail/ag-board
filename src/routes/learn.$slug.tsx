@@ -1,19 +1,38 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
-import { getTutorial, TUTORIALS } from "@/lib/tutorials";
+import { useState } from "react";
+import { LeaveSiteDialog } from "@/components/leave-site-dialog";
+import { UserTutorialTile } from "@/components/tutorial-tiles";
+import { listTutorialLinks } from "@/lib/tutorial-links";
+import {
+  getTutorial,
+  resolveTutorialBoard,
+  TUTORIALS,
+  type UserTutorialLink,
+} from "@/lib/tutorials";
 
 export const Route = createFileRoute("/learn/$slug")({
-  loader: ({ params }) => {
+  loader: async ({ params }) => {
     const tutorial = getTutorial(params.slug);
     if (!tutorial) throw notFound();
-    return { tutorial };
+    let userTiles: UserTutorialLink[] = [];
+    try {
+      userTiles = await listTutorialLinks();
+    } catch {
+      userTiles = [];
+    }
+    return { tutorial, userTiles };
   },
   component: TutorialPage,
 });
 
 function TutorialPage() {
-  const { tutorial } = Route.useLoaderData();
-  const others = TUTORIALS.filter((item) => item.slug !== tutorial.slug);
+  const { tutorial, userTiles } = Route.useLoaderData();
+  const board = resolveTutorialBoard(userTiles);
+  const [leaving, setLeaving] = useState<UserTutorialLink | null>(null);
+  const stockOthers = board.showStock
+    ? TUTORIALS.filter((item) => item.slug !== tutorial.slug)
+    : [];
 
   return (
     <article className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
@@ -45,11 +64,24 @@ function TutorialPage() {
       <p className="mt-8 max-w-2xl text-base leading-relaxed text-fg/90">
         {tutorial.body}
       </p>
-      {others.length > 0 ? (
+      {board.userTiles.length > 0 ? (
+        <section className="mt-16">
+          <h2 className="font-display text-2xl">From neighbors</h2>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            {board.userTiles.slice(0, 4).map((item) => (
+              <UserTutorialTile
+                key={item.id}
+                item={item}
+                onOpen={setLeaving}
+              />
+            ))}
+          </div>
+        </section>
+      ) : stockOthers.length > 0 ? (
         <section className="mt-16">
           <h2 className="font-display text-2xl">More from the yard</h2>
           <div className="mt-5 grid gap-4 sm:grid-cols-3">
-            {others.map((item) => (
+            {stockOthers.map((item) => (
               <Link
                 key={item.slug}
                 to="/learn/$slug"
@@ -73,6 +105,13 @@ function TutorialPage() {
             ))}
           </div>
         </section>
+      ) : null}
+      {leaving ? (
+        <LeaveSiteDialog
+          url={leaving.url}
+          title={leaving.title}
+          onClose={() => setLeaving(null)}
+        />
       ) : null}
     </article>
   );
