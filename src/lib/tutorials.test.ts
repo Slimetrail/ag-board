@@ -125,7 +125,7 @@ describe("external tutorial UI", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const tiles = readFileSync(join(here, "../components/tutorial-tiles.tsx"), "utf8");
     const dialog = readFileSync(join(here, "../components/leave-site-dialog.tsx"), "utf8");
-    const learn = readFileSync(join(here, "../routes/learn.tsx"), "utf8");
+    const learn = readFileSync(join(here, "../routes/learn.index.tsx"), "utf8");
     assert.match(dialog, /Warning: leaving page/);
     assert.match(dialog, /openExternalTutorial/);
     assert.match(tiles, /onOpen/);
