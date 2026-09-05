@@ -175,6 +175,13 @@ export default defineConfig(({ command, isPreview }) => ({
             // manifest + head-tag middleware). Nitro v3 defaults serverDir to
             // false, so removing this silently unwires /?install=1 on deploys.
             serverDir: "./server",
+            // Vite 8.2 / Rolldown 1.2.2+ can split the SSR service into two
+            // mutually-importing chunks and re-export an undeclared
+            // `ssr_exports` namespace. Node then 500s every request
+            // (`{"error":true,"status":500,"unhandled":true}`) while
+            // `vite build` still exits 0. Inlining keeps one SSR entry.
+            // @see https://github.com/TanStack/router/issues/8031
+            inlineDynamicImports: true,
           }),
         ]
       : []),
