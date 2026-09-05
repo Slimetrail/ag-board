@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "node scripts/with-app-env.mjs vite dev --host 0.0.0.0 --port 8080",
-    "build": "node scripts/with-app-env.mjs vite build && npm run db:migrate",
+    "build": "node scripts/with-app-env.mjs vite build && node scripts/check-ssr-bundle.mjs && npm run db:migrate",
     "db:migrate": "node scripts/migrate.mjs",
     "build:dev": "node scripts/with-app-env.mjs vite build --mode development",
     "preview": "node scripts/with-app-env.mjs vite preview",
@@ -16,6 +16,7 @@
     "preview:stop": "node scripts/preview.mjs stop",
     "typecheck": "tsc --noEmit",
     "check:auth": "node scripts/check-auth-invariant.mjs",
+    "check:ssr": "node scripts/check-ssr-bundle.mjs",
     "test": "node --test 'scripts/**/*.test.mjs' && node --experimental-strip-types --test src/lib/app-data/app-data.test.ts src/lib/auth/gate-identity.test.ts src/lib/auth/return-to.test.ts src/lib/auth/trusted-origins.test.ts src/lib/avatar.test.ts src/lib/image-file.test.ts src/lib/photo-frame.test.ts src/lib/category-cover.test.ts src/lib/catalog.test.ts src/lib/listing-draft.test.ts src/lib/nav.test.ts src/lib/seed-policy.test.ts src/lib/upload-path.test.ts src/lib/photo-upload.test.ts src/lib/connect-helpers.test.ts src/lib/messages.schema.test.ts src/lib/tutorials.test.ts",
     "lint": "eslint .",
     "format": "prettier --write ."
