@@ -5,6 +5,7 @@ import {
   Outlet,
   Scripts,
 } from "@tanstack/react-router";
+import { Analytics } from "@vercel/analytics/react";
 import { AuthProvider } from "@/lib/auth/provider";
 import { SiteShell } from "@/components/site-shell";
 import { Button } from "@/components/ui/button";
@@ -69,6 +70,7 @@ export const Route = createRootRoute({
             <Outlet />
           </SiteShell>
         </AuthProvider>
+        <Analytics />
         <Scripts />
       </body>
     </html>
