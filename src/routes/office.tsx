@@ -21,7 +21,12 @@ import {
   type OfficeListing,
   type OfficeTrade,
 } from "@/lib/office";
-import { cn, timeAgo } from "@/lib/utils";
+import {
+  listTutorialLinks,
+  removeTutorialLink,
+} from "@/lib/tutorial-links";
+import { tutorialHostLabel, type UserTutorialLink } from "@/lib/tutorials";
+import { timeAgo } from "@/lib/utils";
 
 export const Route = createFileRoute("/office")({
   component: OfficePage,
@@ -147,14 +152,21 @@ function OfficeDesk() {
   const [notes, setNotes] = useState<ImproveNote[]>([]);
   const [listings, setListings] = useState<OfficeListing[]>([]);
   const [trades, setTrades] = useState<OfficeTrade[]>([]);
+  const [tutorials, setTutorials] = useState<UserTutorialLink[]>([]);
+  const [removingId, setRemovingId] = useState<number | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    void Promise.all([listImproveNotes(), listOfficeBoard()])
-      .then(([improve, board]) => {
+    void Promise.all([
+      listImproveNotes(),
+      listOfficeBoard(),
+      listTutorialLinks(),
+    ])
+      .then(([improve, board, links]) => {
         setNotes(improve);
         setListings(board.listings);
         setTrades(board.trades);
+        setTutorials(links);
         setReady(true);
       })
       .catch(() => setReady(true));
@@ -220,6 +232,71 @@ function OfficeDesk() {
               </article>
             ))
           )}
+        </div>
+      </section>
+
+      <section className="mt-14">
+        <h2 className="font-display text-3xl">Tutorial links</h2>
+        <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted">
+          Public tiles neighbors posted. Taking one down restores the stock
+          clips if none remain. Files are not deleted.
+        </p>
+        <div className="mt-6 overflow-x-auto rounded-xl bg-surface shadow-[var(--shadow-card)]">
+          <table className="w-full min-w-[640px] text-left text-sm">
+            <thead className="border-b border-border text-subtle">
+              <tr>
+                <th className="px-4 py-3 font-medium">Title</th>
+                <th className="px-4 py-3 font-medium">Who</th>
+                <th className="px-4 py-3 font-medium">Host</th>
+                <th className="px-4 py-3 font-medium">Take down</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tutorials.length === 0 ? (
+                <tr>
+                  <td className="px-4 py-6 text-muted" colSpan={4}>
+                    No neighbor tutorial links yet. Stock clips are showing.
+                  </td>
+                </tr>
+              ) : (
+                tutorials.map((row) => (
+                  <tr
+                    key={row.id}
+                    className="border-b border-border/70 last:border-0"
+                  >
+                    <td className="px-4 py-3">
+                      <p className="font-medium">{row.title}</p>
+                      <p className="text-xs text-subtle">{row.summary}</p>
+                    </td>
+                    <td className="px-4 py-3 text-muted">{row.farmName}</td>
+                    <td className="px-4 py-3 text-muted">
+                      {tutorialHostLabel(row.url)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={removingId === row.id}
+                        onClick={() => {
+                          setRemovingId(row.id);
+                          void removeTutorialLink({ data: { id: row.id } })
+                            .then(() =>
+                              setTutorials((prev) =>
+                                prev.filter((item) => item.id !== row.id),
+                              ),
+                            )
+                            .finally(() => setRemovingId(null));
+                        }}
+                      >
+                        {removingId === row.id ? "Taking down…" : "Take down"}
+                      </Button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </section>
 

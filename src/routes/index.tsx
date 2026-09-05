@@ -1,26 +1,37 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { ArrowRight, Play } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { CountySelect } from "@/components/county-select";
+import { LeaveSiteDialog } from "@/components/leave-site-dialog";
 import { ListingGrid, ViewToggle } from "@/components/listing-grid";
+import {
+  StockTutorialTile,
+  UserTutorialTile,
+} from "@/components/tutorial-tiles";
 import { Button } from "@/components/ui/button";
 import { useBoardStore } from "@/lib/board-store";
 import { CATEGORIES, CATEGORY_META } from "@/lib/catalog";
 import { isCountyInState } from "@/lib/geo";
 import { categoryCounts, listListings } from "@/lib/listings";
-import { TUTORIALS } from "@/lib/tutorials";
+import { listTutorialLinks } from "@/lib/tutorial-links";
+import {
+  resolveTutorialBoard,
+  type UserTutorialLink,
+} from "@/lib/tutorials";
 
 export const Route = createFileRoute("/")({
   loader: async () => {
     try {
-      const [featured, counts, shared, leases, needs] = await Promise.all([
-        listListings({ data: { featured: true } }),
-        categoryCounts(),
-        listListings({ data: { dealType: "share" } }),
-        listListings({ data: { categories: ["land", "hunting"] } }),
-        listListings({ data: { dealType: "seeking" } }),
-      ]);
-      return { featured, counts, shared, leases, needs };
+      const [featured, counts, shared, leases, needs, userTiles] =
+        await Promise.all([
+          listListings({ data: { featured: true } }),
+          categoryCounts(),
+          listListings({ data: { dealType: "share" } }),
+          listListings({ data: { categories: ["land", "hunting"] } }),
+          listListings({ data: { dealType: "seeking" } }),
+          listTutorialLinks(),
+        ]);
+      return { featured, counts, shared, leases, needs, userTiles };
     } catch {
       return {
         featured: [],
@@ -28,6 +39,7 @@ export const Route = createFileRoute("/")({
         shared: [],
         leases: [],
         needs: [],
+        userTiles: [] as UserTutorialLink[],
       };
     }
   },
@@ -35,7 +47,10 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
-  const { featured, counts, shared, leases, needs } = Route.useLoaderData();
+  const { featured, counts, shared, leases, needs, userTiles } =
+    Route.useLoaderData();
+  const tutorialBoard = resolveTutorialBoard(userTiles);
+  const [leaving, setLeaving] = useState<UserTutorialLink | null>(null);
   const countMap = Object.fromEntries(
     counts.map((row) => [row.category, row]),
   );
@@ -267,8 +282,9 @@ function Home() {
             Short films from the people who posted.
           </h2>
           <p className="mt-4 max-w-lg text-sm leading-relaxed text-primary-fg/75">
-            Fence, hay, livestock, and walking a lease — the kind of thing a
-            neighbor shows you once in the yard.
+            {tutorialBoard.showStock
+              ? "Fence, hay, livestock, and walking a lease — placeholder clips until a neighbor posts a real link."
+              : "Neighbors posted links to videos they already filmed. We do not embed them here."}
           </p>
           <Button asChild className="mt-6 bg-surface text-fg hover:bg-bg">
             <Link to="/learn">
@@ -277,34 +293,27 @@ function Home() {
             </Link>
           </Button>
           <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {TUTORIALS.map((item) => (
-              <Link
-                key={item.slug}
-                to="/learn/$slug"
-                params={{ slug: item.slug }}
-                className="group overflow-hidden rounded-xl bg-fg/20 shadow-[var(--shadow-card)]"
-              >
-                <div className="relative">
-                  <img
-                    src={item.posterPath}
-                    alt=""
-                    className="aspect-video w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                  />
-                  <span className="absolute right-3 bottom-3 flex size-10 items-center justify-center rounded-full bg-surface text-fg">
-                    <Play className="size-4 fill-current" />
-                  </span>
-                </div>
-                <div className="p-4">
-                  <p className="text-[11px] tracking-wide text-primary-fg/60 uppercase">
-                    {item.topic} · {item.duration}
-                  </p>
-                  <h3 className="mt-1 font-display text-xl">{item.title}</h3>
-                </div>
-              </Link>
+            {tutorialBoard.userTiles.map((item) => (
+              <UserTutorialTile
+                key={item.id}
+                item={item}
+                tone="hero"
+                onOpen={setLeaving}
+              />
+            ))}
+            {tutorialBoard.stockTiles.map((item) => (
+              <StockTutorialTile key={item.slug} item={item} tone="hero" />
             ))}
           </div>
         </div>
       </section>
+      {leaving ? (
+        <LeaveSiteDialog
+          url={leaving.url}
+          title={leaving.title}
+          onClose={() => setLeaving(null)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -27,6 +27,7 @@ import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as SavedRouteImport } from './routes/saved'
 import { Route as ShareRouteImport } from './routes/share'
 import { Route as SkillsRouteImport } from './routes/skills'
+import { Route as LearnIndexRouteImport } from './routes/learn.index'
 import { Route as LearnSlugRouteImport } from './routes/learn.$slug'
 import { Route as ListingSlugRouteImport } from './routes/listing.$slug'
 import { Route as UUsernameRouteImport } from './routes/u.$username'
@@ -122,6 +123,11 @@ const SkillsRoute = SkillsRouteImport.update({
   path: '/skills',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LearnIndexRoute = LearnIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LearnRoute,
+} as any)
 const LearnSlugRoute = LearnSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
@@ -165,6 +171,7 @@ export interface FileRoutesByFullPath {
   '/learn/$slug': typeof LearnSlugRoute
   '/listing/$slug': typeof ListingSlugRoute
   '/u/$username': typeof UUsernameRoute
+  '/learn/': typeof LearnIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
@@ -173,7 +180,6 @@ export interface FileRoutesByTo {
   '/agree': typeof AgreeRoute
   '/improve': typeof ImproveRoute
   '/invites': typeof InvitesRoute
-  '/learn': typeof LearnRouteWithChildren
   '/leases': typeof LeasesRoute
   '/listings': typeof ListingsRoute
   '/login': typeof LoginRoute
@@ -189,6 +195,7 @@ export interface FileRoutesByTo {
   '/learn/$slug': typeof LearnSlugRoute
   '/listing/$slug': typeof ListingSlugRoute
   '/u/$username': typeof UUsernameRoute
+  '/learn': typeof LearnIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
@@ -214,6 +221,7 @@ export interface FileRoutesById {
   '/learn/$slug': typeof LearnSlugRoute
   '/listing/$slug': typeof ListingSlugRoute
   '/u/$username': typeof UUsernameRoute
+  '/learn/': typeof LearnIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
@@ -240,6 +248,7 @@ export interface FileRouteTypes {
     | '/learn/$slug'
     | '/listing/$slug'
     | '/u/$username'
+    | '/learn/'
     | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -248,7 +257,6 @@ export interface FileRouteTypes {
     | '/agree'
     | '/improve'
     | '/invites'
-    | '/learn'
     | '/leases'
     | '/listings'
     | '/login'
@@ -264,6 +272,7 @@ export interface FileRouteTypes {
     | '/learn/$slug'
     | '/listing/$slug'
     | '/u/$username'
+    | '/learn'
     | '/api/auth/$'
   id:
     | '__root__'
@@ -288,6 +297,7 @@ export interface FileRouteTypes {
     | '/learn/$slug'
     | '/listing/$slug'
     | '/u/$username'
+    | '/learn/'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
@@ -443,6 +453,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SkillsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/learn/': {
+      id: '/learn/'
+      path: '/'
+      fullPath: '/learn/'
+      preLoaderRoute: typeof LearnIndexRouteImport
+      parentRoute: typeof LearnRoute
+    }
     '/learn/$slug': {
       id: '/learn/$slug'
       path: '/$slug'
@@ -476,10 +493,12 @@ declare module '@tanstack/react-router' {
 
 interface LearnRouteChildren {
   LearnSlugRoute: typeof LearnSlugRoute
+  LearnIndexRoute: typeof LearnIndexRoute
 }
 
 const LearnRouteChildren: LearnRouteChildren = {
   LearnSlugRoute: LearnSlugRoute,
+  LearnIndexRoute: LearnIndexRoute,
 }
 
 const LearnRouteWithChildren = LearnRoute._addFileChildren(LearnRouteChildren)
