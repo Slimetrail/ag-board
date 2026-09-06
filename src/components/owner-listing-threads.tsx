@@ -26,7 +26,7 @@ export function OwnerListingThreads({
   const open = threads.find((thread) => thread.other.userId === selected);
 
   return (
-    <div className="mt-4 border-t border-border pt-4">
+    <div className="mt-5 rounded-xl bg-surface p-5 shadow-[var(--shadow-card)] sm:p-6">
       {threads.length > 1 ? (
         <div className="mb-3 grid gap-2">
           <p className="text-[12px] tracking-wide text-subtle uppercase">

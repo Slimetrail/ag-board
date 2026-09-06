@@ -3,6 +3,7 @@ import { ArrowLeft, MapPin } from "lucide-react";
 import { ConnectPanel } from "@/components/connect-panel";
 import { ExampleMark, isExampleListing } from "@/components/example-mark";
 import { ListingGrid } from "@/components/listing-grid";
+import { ListingPhotoChat } from "@/components/listing-photo-chat";
 import { ListingPhotoEditor } from "@/components/listing-photo-editor";
 import { ListingPrice } from "@/components/listing-price";
 import { NoteForm } from "@/components/note-form";
@@ -77,6 +78,12 @@ function ListingPage() {
               listingId={listing.id}
               imagePath={listing.imagePath}
               onSaved={() => void router.invalidate()}
+            />
+          ) : null}
+          {listing.userId ? (
+            <ListingPhotoChat
+              ownerUserId={listing.userId}
+              listingId={listing.id}
             />
           ) : null}
           <div className="mt-8">

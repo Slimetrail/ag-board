@@ -52,9 +52,8 @@ export function canMarkDealDone(
 }
 
 /**
- * Visitor on a listing/profile: ConnectPanel only mounted MessageThread for
- * `connected`. The listing owner is `self`, so they never got that panel —
- * the one-sided DM bug.
+ * Visitor on a listing/profile: only `connected` opens the private thread.
+ * The listing owner is `self`, so they use OwnerListingThreads instead.
  */
 export function shouldRenderVisitorThread(relation: string): boolean {
   return relation === "connected";
@@ -63,6 +62,14 @@ export function shouldRenderVisitorThread(relation: string): boolean {
 /** Owner viewing their own card must still see accepted threads for that listing. */
 export function shouldRenderOwnerListingThreads(relation: string): boolean {
   return relation === "self";
+}
+
+/**
+ * Profile ConnectPanel still embeds the thread. On a listing, the photo
+ * column owns the conversation so it sits directly under the photo tile.
+ */
+export function shouldEmbedConnectPanelThread(listingId?: number): boolean {
+  return listingId == null;
 }
 
 export const RATING_CATEGORIES = ["honesty", "courtesy", "reliability"] as const;
