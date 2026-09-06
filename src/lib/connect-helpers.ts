@@ -23,6 +23,48 @@ export function canSubmitRating(dealDone: boolean, alreadyRated: boolean): boole
   return dealDone && !alreadyRated;
 }
 
+export type DealStatus = "open" | "pending" | "done";
+
+/** Persist order: Deal pending, then Deal done. Done always wins. */
+export function threadDealStatus(input: {
+  dealPendingAt?: string | Date | null;
+  dealDoneAt?: string | Date | null;
+}): DealStatus {
+  if (input.dealDoneAt) return "done";
+  if (input.dealPendingAt) return "pending";
+  return "open";
+}
+
+/** Listing owner starts the handshake record. */
+export function canMarkDealPending(
+  isListingOwner: boolean,
+  status: DealStatus,
+): boolean {
+  return isListingOwner && status === "open";
+}
+
+/** Listing owner finishes after they meet. Unlocks ratings on both sides. */
+export function canMarkDealDone(
+  isListingOwner: boolean,
+  status: DealStatus,
+): boolean {
+  return isListingOwner && status === "pending";
+}
+
+/**
+ * Visitor on a listing/profile: ConnectPanel only mounted MessageThread for
+ * `connected`. The listing owner is `self`, so they never got that panel —
+ * the one-sided DM bug.
+ */
+export function shouldRenderVisitorThread(relation: string): boolean {
+  return relation === "connected";
+}
+
+/** Owner viewing their own card must still see accepted threads for that listing. */
+export function shouldRenderOwnerListingThreads(relation: string): boolean {
+  return relation === "self";
+}
+
 export const RATING_CATEGORIES = ["honesty", "courtesy", "reliability"] as const;
 export type RatingCategory = (typeof RATING_CATEGORIES)[number];
 

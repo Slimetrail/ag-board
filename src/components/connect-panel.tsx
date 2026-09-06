@@ -4,10 +4,15 @@ import { FarmAvatar } from "@/components/farm-avatar";
 import { InviteRespondButtons } from "@/components/invite-respond-buttons";
 import { ListingInviteInbox } from "@/components/listing-invite-inbox";
 import { MessageThread } from "@/components/message-thread";
+import { OwnerListingThreads } from "@/components/owner-listing-threads";
 import { NeighborRating } from "@/components/neighbor-rating";
 import { Button } from "@/components/ui/button";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { shouldShowInviteRespond } from "@/lib/connect-helpers";
+import {
+  shouldRenderOwnerListingThreads,
+  shouldRenderVisitorThread,
+  shouldShowInviteRespond,
+} from "@/lib/connect-helpers";
 import {
   getConnection,
   getPublicByUserId,
@@ -124,12 +129,26 @@ export function ConnectPanel({
         </p>
       ) : null}
 
-      {relation === "self" ? (
+      {shouldRenderOwnerListingThreads(relation) && user ? (
         <div className="mt-4">
           <p className="text-sm text-subtle">This is your card.</p>
           {listingId ? <ListingInviteInbox listingId={listingId} /> : null}
+          {listingId ? (
+            <OwnerListingThreads
+              listingId={listingId}
+              currentUserId={user.id}
+            />
+          ) : (
+            <p className="mt-3 text-sm text-muted">
+              Private threads live under{" "}
+              <Link to="/messages" className="underline-offset-2 hover:underline">
+                Messages
+              </Link>
+              .
+            </p>
+          )}
         </div>
-      ) : relation === "connected" && user ? (
+      ) : shouldRenderVisitorThread(relation) && user ? (
         <MessageThread
           otherUserId={userId}
           listingId={listingId}

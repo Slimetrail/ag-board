@@ -1,15 +1,20 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Sql } from "./db.ts";
 import {
   countPendingByListing,
   interestEmailSubject,
   interestEmailText,
   interestedNeighborHeadline,
+  listingInterestInvites,
   notifyListingOwnerOfInterest,
   pendingInterestLabel,
   resolvePublicAppOrigin,
   sendPlainEmail,
+  shouldShowSiteInterestNotice,
 } from "./interest-notify.ts";
 
 describe("interestedNeighborHeadline", () => {
@@ -54,6 +59,28 @@ describe("interest email copy", () => {
     assert.equal(text.includes("jane_farm@"), false);
     assert.equal(text.includes("phone"), false);
     assert.equal(text.includes("address"), false);
+  });
+});
+
+describe("site interest notice", () => {
+  it("is mounted in the site shell so owners see it off the listing", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const shell = readFileSync(join(here, "../components/site-shell.tsx"), "utf8");
+    assert.match(shell, /SiteInterestNotice/);
+    assert.match(shell, /\{user \? <SiteInterestNotice \/> : null\}/);
+  });
+
+  it("keeps listing interest on a site-wide surface", () => {
+    assert.equal(shouldShowSiteInterestNotice(0), false);
+    assert.equal(shouldShowSiteInterestNotice(1), true);
+    assert.deepEqual(
+      listingInterestInvites([
+        { listingId: 4 },
+        { listingId: null },
+        { listingId: 9 },
+      ]),
+      [{ listingId: 4 }, { listingId: 9 }],
+    );
   });
 });
 

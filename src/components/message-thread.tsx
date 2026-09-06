@@ -3,8 +3,10 @@ import {
   getOrOpenThread,
   getThreadState,
   markDealDone,
+  markDealPending,
   sendMessage,
   submitRating,
+  THREAD_POLL_MS,
   type ThreadState,
 } from "@/lib/messages";
 import { timeAgo } from "@/lib/utils";
@@ -16,7 +18,11 @@ import {
   formatSubmittedRating,
   NeighborRating,
 } from "@/components/neighbor-rating";
-import type { PartialCategoryScores } from "@/lib/connect-helpers";
+import {
+  canMarkDealDone,
+  canMarkDealPending,
+  type PartialCategoryScores,
+} from "@/lib/connect-helpers";
 
 export function MessageThread({
   otherUserId,
@@ -37,7 +43,7 @@ export function MessageThread({
     courtesy: null,
     reliability: null,
   });
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,16 +68,27 @@ export function MessageThread({
   const threadId = thread?.threadId;
   useEffect(() => {
     if (!threadId) return;
-    const timer = window.setInterval(() => {
-      void getThreadState({ data: { threadId } })
-        .then(setThread)
+    let cancelled = false;
+    function refresh() {
+      void getThreadState({ data: { threadId: threadId! } })
+        .then((next) => {
+          if (!cancelled) setThread(next);
+        })
         .catch(() => undefined);
-    }, 5000);
-    return () => window.clearInterval(timer);
+    }
+    const timer = window.setInterval(refresh, THREAD_POLL_MS);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, [threadId]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end" });
+    endRef.current?.scrollIntoView({ block: "nearest" });
   }, [thread?.messages.length]);
 
   async function send() {
@@ -86,6 +103,21 @@ export function MessageThread({
       setBody("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not send that.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function setDealPending() {
+    if (!thread) return;
+    setPending(true);
+    setError(null);
+    try {
+      setThread(await markDealPending({ data: { threadId: thread.threadId } }));
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Could not mark Deal pending.",
+      );
     } finally {
       setPending(false);
     }
@@ -127,77 +159,85 @@ export function MessageThread({
   }
 
   if (error && !thread) {
-    return <p className="mt-4 text-sm text-muted">{error}</p>;
+    return <p className="text-sm text-muted">{error}</p>;
   }
 
   if (!thread) {
-    return <p className="mt-4 text-sm text-muted">Opening the private thread…</p>;
+    return <p className="text-sm text-muted">Opening the private thread…</p>;
   }
 
   const handle = thread.other.username;
+  const showPending = canMarkDealPending(
+    thread.isListingOwner,
+    thread.dealStatus,
+  );
+  const showDone = canMarkDealDone(thread.isListingOwner, thread.dealStatus);
 
   return (
-    <div className="mt-4">
-      <p className="text-[12px] tracking-wide text-subtle uppercase">
-        Private messages
-      </p>
-      <p className="mt-1 text-sm leading-relaxed text-muted">
-        Connected. Talk here — real name, address, phone, and email stay off
-        public profiles.
-      </p>
-      <NeighborRating
-        className="mt-2"
-        average={thread.other.ratingAverage}
-        count={thread.other.ratingCount}
-        categoryAverages={thread.other.categoryAverages}
-      />
-
-      <div className="mt-3 max-h-72 space-y-3 overflow-y-auto rounded-lg bg-wash/60 p-3">
-        {thread.messages.length === 0 ? (
-          <p className="text-sm text-subtle">
-            No messages yet. Arrange pickup or a handshake here.
-          </p>
-        ) : (
-          thread.messages.map((message) => {
-            const mine = message.senderUserId === currentUserId;
-            return (
-              <div key={message.id} className={mine ? "text-right" : "text-left"}>
-                <p className="text-[11px] text-subtle">
-                  {mine ? "You" : `@${handle}`}
-                  {message.createdAt ? ` · ${timeAgo(message.createdAt)}` : ""}
-                </p>
-                <p className="mt-0.5 inline-block max-w-[90%] rounded-lg bg-surface px-3 py-2 text-left text-sm leading-relaxed shadow-[var(--shadow-card)]">
-                  {message.body}
-                </p>
-              </div>
-            );
-          })
-        )}
-        <div ref={bottomRef} />
+    <div className="flex min-h-0 flex-col">
+      <div className="shrink-0">
+        <p className="text-[12px] tracking-wide text-subtle uppercase">
+          Private messages
+        </p>
+        <p className="mt-0.5 text-sm text-muted">
+          Connected with @{handle}. Talk here.
+        </p>
+        <NeighborRating
+          className="mt-1"
+          average={thread.other.ratingAverage}
+          count={thread.other.ratingCount}
+          categoryAverages={thread.other.categoryAverages}
+        />
       </div>
 
-      <form
-        className="mt-3 grid gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void send();
-        }}
-      >
-        <Textarea
-          value={body}
-          onChange={(event) => setBody(event.target.value)}
-          maxLength={1000}
-          rows={3}
-          placeholder={`Message @${handle}…`}
-          aria-label="Private message"
-        />
-        <Button type="submit" disabled={pending || !body.trim()}>
-          {pending ? "Sending…" : "Send"}
-        </Button>
-      </form>
+      <div className="mt-3 flex min-h-[14rem] flex-1 flex-col rounded-lg bg-wash/60">
+        <div className="min-h-[10rem] flex-1 space-y-3 overflow-y-auto p-3">
+          {thread.messages.length === 0 ? (
+            <p className="text-sm text-subtle">
+              No messages yet. Arrange pickup or a handshake here.
+            </p>
+          ) : (
+            thread.messages.map((message) => {
+              const mine = message.senderUserId === currentUserId;
+              return (
+                <div key={message.id} className={mine ? "text-right" : "text-left"}>
+                  <p className="text-[11px] text-subtle">
+                    {mine ? "You" : `@${handle}`}
+                    {message.createdAt ? ` · ${timeAgo(message.createdAt)}` : ""}
+                  </p>
+                  <p className="mt-0.5 inline-block max-w-[90%] rounded-lg bg-surface px-3 py-2 text-left text-sm leading-relaxed shadow-[var(--shadow-card)]">
+                    {message.body}
+                  </p>
+                </div>
+              );
+            })
+          )}
+          <div ref={endRef} />
+        </div>
 
-      <div className="mt-4 border-t border-border pt-4">
-        {thread.dealDone ? (
+        <form
+          className="grid gap-2 border-t border-border/70 p-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void send();
+          }}
+        >
+          <Textarea
+            value={body}
+            onChange={(event) => setBody(event.target.value)}
+            maxLength={1000}
+            rows={2}
+            placeholder={`Message @${handle}…`}
+            aria-label="Private message"
+          />
+          <Button type="submit" disabled={pending || !body.trim()}>
+            {pending ? "Sending…" : "Send"}
+          </Button>
+        </form>
+      </div>
+
+      <div className="mt-4 shrink-0 border-t border-border pt-4">
+        {thread.dealStatus === "done" ? (
           <div className="grid gap-2">
             <p className="text-sm text-muted">Deal marked done.</p>
             {thread.myRating ? (
@@ -228,21 +268,46 @@ export function MessageThread({
               </div>
             )}
           </div>
-        ) : (
+        ) : thread.isListingOwner ? (
           <div>
-            <p className="text-sm leading-relaxed text-muted">
-              When the handshake is finished, either of you can mark the deal
-              done. That unlocks one rating each.
-            </p>
-            <Button
-              className="mt-3"
-              variant="outline"
-              disabled={pending}
-              onClick={() => void finishDeal()}
-            >
-              {pending ? "Saving…" : "Deal done"}
-            </Button>
+            {thread.dealStatus === "pending" ? (
+              <p className="text-sm leading-relaxed text-muted">
+                Deal pending. After you meet, mark Deal done. That unlocks one
+                rating each.
+              </p>
+            ) : (
+              <p className="text-sm leading-relaxed text-muted">
+                When you are lining up the handshake, mark Deal pending. After
+                you meet, mark Deal done. That unlocks one rating each.
+              </p>
+            )}
+            {showPending ? (
+              <Button
+                className="mt-3"
+                variant="outline"
+                disabled={pending}
+                onClick={() => void setDealPending()}
+              >
+                {pending ? "Saving…" : "Deal pending"}
+              </Button>
+            ) : null}
+            {showDone ? (
+              <Button
+                className="mt-3"
+                variant="outline"
+                disabled={pending}
+                onClick={() => void finishDeal()}
+              >
+                {pending ? "Saving…" : "Deal done"}
+              </Button>
+            ) : null}
           </div>
+        ) : (
+          <p className="text-sm leading-relaxed text-muted">
+            {thread.dealStatus === "pending"
+              ? "Deal pending. The listing owner marks Deal done after you meet. Then you can both rate."
+              : "The listing owner marks Deal pending, then Deal done after you meet. That unlocks one rating each."}
+          </p>
         )}
       </div>
       {error ? (

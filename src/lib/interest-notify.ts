@@ -13,6 +13,21 @@ export type MailSendResult = {
   reason?: string;
 };
 
+/** Browser event after Accept/Deny so banners, badges, and threads refetch. */
+export const INVITES_CHANGED = "ag-invites-changed";
+
+/** Incoming invites that are about a listing, not a profile-only request. */
+export function listingInterestInvites<T extends { listingId: number | null }>(
+  incoming: T[],
+): T[] {
+  return incoming.filter((row) => row.listingId != null);
+}
+
+/** Site-wide banner/popup: show whenever listing interest is waiting. */
+export function shouldShowSiteInterestNotice(count: number): boolean {
+  return count > 0;
+}
+
 /** Headline on the owner listing banner and Your listings. */
 export function interestedNeighborHeadline(count: number): string {
   if (count <= 0) return "";

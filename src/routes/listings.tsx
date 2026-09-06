@@ -3,10 +3,8 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { DraftRow } from "@/components/draft-row";
 import { ListingGrid, ViewToggle } from "@/components/listing-grid";
-import {
-  INVITES_CHANGED,
-  OwnerInterestBanner,
-} from "@/components/owner-interest-banner";
+import { OwnerInterestBanner } from "@/components/owner-interest-banner";
+import { INVITES_CHANGED } from "@/lib/interest-notify";
 import { RequireUse } from "@/components/require-use";
 import { Button } from "@/components/ui/button";
 import { useBoardStore } from "@/lib/board-store";

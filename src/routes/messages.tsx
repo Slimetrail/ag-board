@@ -4,7 +4,7 @@ import { FarmAvatar } from "@/components/farm-avatar";
 import { MessageThread } from "@/components/message-thread";
 import { RequireUse } from "@/components/require-use";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { listThreads, type ThreadSummary } from "@/lib/messages";
+import { useThreadList } from "@/lib/use-thread-list";
 import { cn, timeAgo } from "@/lib/utils";
 
 export type MessagesSearch = {
@@ -29,30 +29,23 @@ function MessagesPage() {
 function MessagesList() {
   const { user } = useCurrentUserState();
   const search = Route.useSearch();
-  const [threads, setThreads] = useState<ThreadSummary[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const { threads, loaded } = useThreadList();
   const [selected, setSelected] = useState<string | undefined>(search.with);
 
   useEffect(() => {
-    void listThreads()
-      .then((data) => {
-        setThreads(data.threads);
-        setLoaded(true);
-        if (!search.with && data.threads[0]) {
-          setSelected(data.threads[0].other.userId);
-        }
-      })
-      .catch(() => setLoaded(true));
-  }, [search.with]);
-
-  useEffect(() => {
-    if (search.with) setSelected(search.with);
-  }, [search.with]);
+    if (search.with) {
+      setSelected(search.with);
+      return;
+    }
+    if (!selected && threads[0]) {
+      setSelected(threads[0].other.userId);
+    }
+  }, [search.with, threads, selected]);
 
   const open = threads.find((thread) => thread.other.userId === selected);
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-14">
+    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
       <p className="text-[13px] font-medium tracking-[0.16em] text-muted uppercase">
         Private
       </p>
@@ -63,9 +56,9 @@ function MessagesList() {
       </p>
 
       {!loaded ? (
-        <p className="mt-10 text-sm text-muted">Opening your threads…</p>
+        <p className="mt-8 text-sm text-muted">Opening your threads…</p>
       ) : threads.length === 0 && !selected ? (
-        <p className="mt-10 text-sm text-muted">
+        <p className="mt-8 text-sm text-muted">
           No connections yet. Accept a request on{" "}
           <Link to="/invites" className="underline-offset-2 hover:underline">
             Invites
@@ -73,7 +66,16 @@ function MessagesList() {
           to open a thread.
         </p>
       ) : (
-        <div className="mt-10 grid gap-8">
+        <div className="mt-6 grid gap-6">
+          {user && (open || selected) ? (
+            <div className="rounded-xl bg-surface p-5 shadow-[var(--shadow-card)] sm:p-6">
+              <MessageThread
+                otherUserId={open?.other.userId ?? selected!}
+                listingId={open?.listingId ?? undefined}
+                currentUserId={user.id}
+              />
+            </div>
+          ) : null}
           <div className="grid gap-3">
             {threads.map((thread) => {
               const active = thread.other.userId === selected;
@@ -105,15 +107,6 @@ function MessagesList() {
               );
             })}
           </div>
-          {user && (open || selected) ? (
-            <div className="rounded-xl bg-surface p-5 shadow-[var(--shadow-card)] sm:p-6">
-              <MessageThread
-                otherUserId={open?.other.userId ?? selected!}
-                listingId={open?.listingId ?? undefined}
-                currentUserId={user.id}
-              />
-            </div>
-          ) : null}
         </div>
       )}
     </div>

@@ -2,14 +2,20 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { authMiddleware } from "@/lib/auth/middleware";
 import {
+  canMarkDealDone,
+  canMarkDealPending,
   canSubmitRating,
   hasCompleteCategoryScores,
   legacyStarsFromCategoryScores,
   pairUserIds,
+  threadDealStatus,
   type CategoryScores,
+  type DealStatus,
 } from "@/lib/connect-helpers";
 import { getSql, type Sql } from "@/lib/db";
 import { loadPublicProfiles, type PublicProfile } from "@/lib/profiles";
+
+export const THREAD_POLL_MS = 4000;
 
 export type ChatMessage = {
   id: number;
@@ -22,7 +28,9 @@ export type ThreadState = {
   threadId: number;
   listingId: number | null;
   other: PublicProfile;
+  dealStatus: DealStatus;
   dealDone: boolean;
+  isListingOwner: boolean;
   myRating: CategoryScores | null;
   theyRated: boolean;
   messages: ChatMessage[];
@@ -32,6 +40,7 @@ export type ThreadSummary = {
   threadId: number;
   listingId: number | null;
   other: PublicProfile;
+  dealStatus: DealStatus;
   dealDone: boolean;
   lastBody: string | null;
   lastAt: string | null;
@@ -43,9 +52,34 @@ type ThreadRow = {
   listing_id: number | null;
   user_a_id: string;
   user_b_id: string;
+  deal_pending_at: string | null;
+  deal_pending_by: string | null;
   deal_done_at: string | null;
   deal_done_by: string | null;
 };
+
+const THREAD_COLUMNS =
+  "id, invite_id, listing_id, user_a_id, user_b_id, deal_pending_at, deal_pending_by, deal_done_at, deal_done_by";
+
+const emptyCategoryAverages = {
+  honesty: null,
+  courtesy: null,
+  reliability: null,
+};
+
+/** Keep a thread visible even if the other profile row is missing. */
+export function placeholderProfile(userId: string): PublicProfile {
+  return {
+    userId,
+    username: "neighbor",
+    imagePath: "",
+    county: "",
+    bio: "",
+    ratingAverage: null,
+    ratingCount: 0,
+    categoryAverages: { ...emptyCategoryAverages },
+  };
+}
 
 type MessageRow = {
   id: number;
@@ -131,7 +165,7 @@ async function requireThreadMember(
   userId: string,
 ): Promise<ThreadRow> {
   const rows = await sql.query<ThreadRow>(
-    `select id, invite_id, listing_id, user_a_id, user_b_id, deal_done_at, deal_done_by
+    `select ${THREAD_COLUMNS}
      from conversation_threads
      where id = $1
      limit 1`,
@@ -146,6 +180,27 @@ async function requireThreadMember(
 
 function otherIdOnThread(row: ThreadRow, me: string): string {
   return row.user_a_id === me ? row.user_b_id : row.user_a_id;
+}
+
+async function resolveListingOwnerId(
+  sql: Sql,
+  row: ThreadRow,
+): Promise<string | null> {
+  if (row.listing_id) {
+    const listings = await sql.query<{ user_id: string | null }>(
+      `select user_id from listings where id = $1 limit 1`,
+      [row.listing_id],
+    );
+    if (listings[0]?.user_id) return listings[0].user_id;
+  }
+  if (row.invite_id) {
+    const invites = await sql.query<{ to_user_id: string }>(
+      `select to_user_id from connection_invites where id = $1 limit 1`,
+      [row.invite_id],
+    );
+    return invites[0]?.to_user_id ?? null;
+  }
+  return null;
 }
 
 async function loadMessages(sql: Sql, threadId: number): Promise<ChatMessage[]> {
@@ -193,18 +248,24 @@ async function threadState(
   me: string,
 ): Promise<ThreadState> {
   const otherUserId = otherIdOnThread(row, me);
-  const profiles = await loadPublicProfiles(sql, [otherUserId]);
-  const other = profiles.get(otherUserId);
-  if (!other) throw new Error("That neighbor is not on the board.");
-  const [messages, ratings] = await Promise.all([
+  const [profiles, messages, ratings, ownerId] = await Promise.all([
+    loadPublicProfiles(sql, [otherUserId]),
     loadMessages(sql, row.id),
     loadRatingState(sql, row.id, me),
+    resolveListingOwnerId(sql, row),
   ]);
+  const other = profiles.get(otherUserId) ?? placeholderProfile(otherUserId);
+  const dealStatus = threadDealStatus({
+    dealPendingAt: row.deal_pending_at,
+    dealDoneAt: row.deal_done_at,
+  });
   return {
     threadId: row.id,
     listingId: row.listing_id,
     other,
-    dealDone: Boolean(row.deal_done_at),
+    dealStatus,
+    dealDone: dealStatus === "done",
+    isListingOwner: ownerId === me,
     myRating: ratings.myRating,
     theyRated: ratings.theyRated,
     messages,
@@ -288,18 +349,64 @@ export const sendMessage = createServerFn({ method: "POST" })
     return threadState(sql, row, context.userId);
   });
 
+export const markDealPending = createServerFn({ method: "POST" })
+  .validator(z.object({ threadId: z.number().int().positive() }))
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const row = await requireThreadMember(sql, data.threadId, context.userId);
+    const ownerId = await resolveListingOwnerId(sql, row);
+    const status = threadDealStatus({
+      dealPendingAt: row.deal_pending_at,
+      dealDoneAt: row.deal_done_at,
+    });
+    if (!canMarkDealPending(ownerId === context.userId, status)) {
+      throw new Error(
+        status === "done"
+          ? "This deal is already marked done."
+          : status === "pending"
+            ? "Deal pending is already marked."
+            : "The listing owner marks Deal pending.",
+      );
+    }
+    const rows = await sql.query<ThreadRow>(
+      `update conversation_threads
+       set deal_pending_at = coalesce(deal_pending_at, now()),
+           deal_pending_by = coalesce(deal_pending_by, $2)
+       where id = $1
+       returning ${THREAD_COLUMNS}`,
+      [data.threadId, context.userId],
+    );
+    return threadState(sql, rows[0]!, context.userId);
+  });
+
 export const markDealDone = createServerFn({ method: "POST" })
   .validator(z.object({ threadId: z.number().int().positive() }))
   .middleware([authMiddleware])
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    await requireThreadMember(sql, data.threadId, context.userId);
+    const row = await requireThreadMember(sql, data.threadId, context.userId);
+    const ownerId = await resolveListingOwnerId(sql, row);
+    const status = threadDealStatus({
+      dealPendingAt: row.deal_pending_at,
+      dealDoneAt: row.deal_done_at,
+    });
+    if (status === "done") {
+      return threadState(sql, row, context.userId);
+    }
+    if (!canMarkDealDone(ownerId === context.userId, status)) {
+      throw new Error(
+        status === "open"
+          ? "Mark Deal pending first."
+          : "The listing owner marks Deal done after you meet.",
+      );
+    }
     const rows = await sql.query<ThreadRow>(
       `update conversation_threads
        set deal_done_at = coalesce(deal_done_at, now()),
            deal_done_by = coalesce(deal_done_by, $2)
        where id = $1
-       returning id, invite_id, listing_id, user_a_id, user_b_id, deal_done_at, deal_done_by`,
+       returning ${THREAD_COLUMNS}`,
       [data.threadId, context.userId],
     );
     return threadState(sql, rows[0]!, context.userId);
@@ -355,48 +462,91 @@ export const submitRating = createServerFn({ method: "POST" })
     return threadState(sql, row, context.userId);
   });
 
+async function listThreadSummaries(
+  sql: Sql,
+  userId: string,
+  listingId?: number,
+): Promise<ThreadSummary[]> {
+  const rows = await sql.query<
+    ThreadRow & { last_body: string | null; last_at: string | null }
+  >(
+    listingId
+      ? `select t.${THREAD_COLUMNS.replace(/, /g, ", t.")},
+                (select m.body from messages m
+                  where m.thread_id = t.id
+                  order by m.created_at desc, m.id desc
+                  limit 1) as last_body,
+                (select m.created_at from messages m
+                  where m.thread_id = t.id
+                  order by m.created_at desc, m.id desc
+                  limit 1) as last_at
+         from conversation_threads t
+         where (t.user_a_id = $1 or t.user_b_id = $1)
+           and (
+             t.listing_id = $2
+             or t.invite_id in (
+               select id from connection_invites where listing_id = $2
+             )
+           )
+         order by coalesce(
+           (select m.created_at from messages m
+             where m.thread_id = t.id
+             order by m.created_at desc, m.id desc
+             limit 1),
+           t.created_at
+         ) desc`
+      : `select t.${THREAD_COLUMNS.replace(/, /g, ", t.")},
+                (select m.body from messages m
+                  where m.thread_id = t.id
+                  order by m.created_at desc, m.id desc
+                  limit 1) as last_body,
+                (select m.created_at from messages m
+                  where m.thread_id = t.id
+                  order by m.created_at desc, m.id desc
+                  limit 1) as last_at
+         from conversation_threads t
+         where t.user_a_id = $1 or t.user_b_id = $1
+         order by coalesce(
+           (select m.created_at from messages m
+             where m.thread_id = t.id
+             order by m.created_at desc, m.id desc
+             limit 1),
+           t.created_at
+         ) desc`,
+    listingId ? [userId, listingId] : [userId],
+  );
+  const otherIds = rows.map((row) => otherIdOnThread(row, userId));
+  const profiles = await loadPublicProfiles(sql, otherIds);
+  return rows.map((row) => {
+    const otherId = otherIdOnThread(row, userId);
+    return {
+      threadId: row.id,
+      listingId: row.listing_id,
+      other: profiles.get(otherId) ?? placeholderProfile(otherId),
+      dealStatus: threadDealStatus({
+        dealPendingAt: row.deal_pending_at,
+        dealDoneAt: row.deal_done_at,
+      }),
+      dealDone: Boolean(row.deal_done_at),
+      lastBody: row.last_body,
+      lastAt: asIso(row.last_at),
+    };
+  });
+}
+
 export const listThreads = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const sql = await getSql();
-    const rows = await sql.query<
-      ThreadRow & { last_body: string | null; last_at: string | null }
-    >(
-      `select t.id, t.invite_id, t.listing_id, t.user_a_id, t.user_b_id,
-              t.deal_done_at, t.deal_done_by,
-              (select m.body from messages m
-                where m.thread_id = t.id
-                order by m.created_at desc, m.id desc
-                limit 1) as last_body,
-              (select m.created_at from messages m
-                where m.thread_id = t.id
-                order by m.created_at desc, m.id desc
-                limit 1) as last_at
-       from conversation_threads t
-       where t.user_a_id = $1 or t.user_b_id = $1
-       order by coalesce(
-         (select m.created_at from messages m
-           where m.thread_id = t.id
-           order by m.created_at desc, m.id desc
-           limit 1),
-         t.created_at
-       ) desc`,
-      [context.userId],
-    );
-    const otherIds = rows.map((row) => otherIdOnThread(row, context.userId));
-    const profiles = await loadPublicProfiles(sql, otherIds);
-    const threads: ThreadSummary[] = [];
-    for (const row of rows) {
-      const other = profiles.get(otherIdOnThread(row, context.userId));
-      if (!other) continue;
-      threads.push({
-        threadId: row.id,
-        listingId: row.listing_id,
-        other,
-        dealDone: Boolean(row.deal_done_at),
-        lastBody: row.last_body,
-        lastAt: asIso(row.last_at),
-      });
-    }
-    return { threads };
+    return { threads: await listThreadSummaries(sql, context.userId) };
+  });
+
+export const listListingThreads = createServerFn({ method: "POST" })
+  .validator(z.object({ listingId: z.number().int().positive() }))
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    return {
+      threads: await listThreadSummaries(sql, context.userId, data.listingId),
+    };
   });
