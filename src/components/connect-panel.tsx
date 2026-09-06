@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { CancelRequestButton } from "@/components/cancel-request-button";
 import { FarmAvatar } from "@/components/farm-avatar";
 import { InviteRespondButtons } from "@/components/invite-respond-buttons";
 import { ListingInviteInbox } from "@/components/listing-invite-inbox";
@@ -11,10 +12,12 @@ import {
   shouldEmbedConnectPanelThread,
   shouldRenderOwnerListingThreads,
   shouldRenderVisitorThread,
+  shouldShowCancelRequest,
   shouldShowInviteRespond,
 } from "@/lib/connect-helpers";
 import { INVITES_CHANGED } from "@/lib/interest-notify";
 import {
+  cancelInvite,
   getConnection,
   getPublicByUserId,
   respondInvite,
@@ -57,6 +60,11 @@ export function ConnectPanel({
   useEffect(() => {
     if (authPending) return;
     void load();
+    const onChange = () => {
+      void load();
+    };
+    window.addEventListener(INVITES_CHANGED, onChange);
+    return () => window.removeEventListener(INVITES_CHANGED, onChange);
   }, [userId, user, authPending]);
 
   const handle = pub?.username ?? "neighbor";
@@ -85,6 +93,23 @@ export function ConnectPanel({
     setPending(true);
     try {
       await respondInvite({ data: { id: pendingInviteId, accept } });
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event(INVITES_CHANGED));
+      }
+      await load();
+    } catch (err) {
+      if (String(err instanceof Error ? err.message : err).includes("Agree")) {
+        void navigate({ to: "/agree" });
+      }
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function withdrawRequest() {
+    setPending(true);
+    try {
+      await cancelInvite({ data: { toUserId: userId } });
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event(INVITES_CHANGED));
       }
@@ -182,23 +207,38 @@ export function ConnectPanel({
               onDeny={() => void respondToRequest(false)}
             />
           ) : listingId ? (
-            <p className="mt-3 text-sm text-subtle">
-              {relation === "pending-out"
-                ? "Interested — waiting on Accept. Favorite stays a bookmark only."
-                : "Use Interested on the listing to send a request. Favorite does not notify them."}
-            </p>
+            <div className="mt-3">
+              <p className="text-sm text-subtle">
+                {shouldShowCancelRequest(relation)
+                  ? "Interested — waiting on Accept. Favorite stays a bookmark only."
+                  : "Use Interested on the listing to send a request. Favorite does not notify them."}
+              </p>
+              {shouldShowCancelRequest(relation) ? (
+                <CancelRequestButton
+                  className="mt-3 w-full"
+                  busy={pending}
+                  onCancel={() => void withdrawRequest()}
+                />
+              ) : null}
+            </div>
+          ) : shouldShowCancelRequest(relation) ? (
+            <div className="mt-3 grid gap-2">
+              <Button className="w-full" variant="outline" disabled>
+                Request sent — waiting on Accept
+              </Button>
+              <CancelRequestButton
+                className="w-full"
+                busy={pending}
+                onCancel={() => void withdrawRequest()}
+              />
+            </div>
           ) : (
             <Button
               className="mt-3 w-full"
-              variant={relation === "pending-out" ? "outline" : "default"}
-              disabled={pending || relation === "pending-out"}
+              disabled={pending}
               onClick={() => void requestConnect()}
             >
-              {pending
-                ? "Sending…"
-                : relation === "pending-out"
-                  ? "Request sent — waiting on Accept"
-                  : "Request to connect"}
+              {pending ? "Sending…" : "Request to connect"}
             </Button>
           )}
         </div>

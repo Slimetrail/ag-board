@@ -9,6 +9,7 @@ import {
   type CategoryAverages,
 } from "@/lib/connect-helpers";
 import { getSql, type Sql } from "@/lib/db";
+import { inviteListingFromRow } from "@/lib/interest-notify";
 import { USER_IMAGE_PATH_MAX } from "@/lib/upload-path";
 
 export type { CategoryAverages };
@@ -47,6 +48,7 @@ export type InviteListing = {
   id: number;
   title: string;
   slug: string;
+  imagePath: string;
 };
 
 export type InviteRow = {
@@ -586,11 +588,13 @@ export const listInvites = createServerFn({ method: "POST" })
       listing_id: number | null;
       listing_title: string | null;
       listing_slug: string | null;
+      listing_image_path: string | null;
       status: string;
       created_at: string;
     }>(
       `select i.id, i.from_user_id, i.to_user_id, i.listing_id, i.status, i.created_at,
-              l.title as listing_title, l.slug as listing_slug
+              l.title as listing_title, l.slug as listing_slug,
+              l.image_path as listing_image_path
        from connection_invites i
        left join listings l on l.id = i.listing_id
        where (i.from_user_id = $1 or i.to_user_id = $1)
@@ -633,14 +637,12 @@ export const listInvites = createServerFn({ method: "POST" })
         fromUserId: row.from_user_id,
         toUserId: row.to_user_id,
         listingId: row.listing_id,
-        listing:
-          row.listing_id && row.listing_title && row.listing_slug
-            ? {
-                id: row.listing_id,
-                title: row.listing_title,
-                slug: row.listing_slug,
-              }
-            : null,
+        listing: inviteListingFromRow({
+          listingId: row.listing_id,
+          listingTitle: row.listing_title,
+          listingSlug: row.listing_slug,
+          listingImagePath: row.listing_image_path,
+        }),
         status: row.status,
         createdAt: row.created_at,
         other,
@@ -687,6 +689,36 @@ export const respondInvite = createServerFn({ method: "POST" })
       });
     }
     return { ok: true, status };
+  });
+
+export const cancelInvite = createServerFn({ method: "POST" })
+  .validator(
+    z.union([
+      z.object({ id: z.number().int().positive() }),
+      z.object({ toUserId: z.string().min(1).max(80) }),
+    ]),
+  )
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const rows =
+      "id" in data
+        ? await sql.query<{ id: number }>(
+            `update connection_invites
+             set status = 'withdrawn'
+             where id = $1 and from_user_id = $2 and status = 'pending'
+             returning id`,
+            [data.id, context.userId],
+          )
+        : await sql.query<{ id: number }>(
+            `update connection_invites
+             set status = 'withdrawn'
+             where from_user_id = $1 and to_user_id = $2 and status = 'pending'
+             returning id`,
+            [context.userId, data.toUserId],
+          );
+    if (!rows[0]) throw new Error("That request is no longer open.");
+    return { ok: true as const, relation: "none" as const };
   });
 
 export const acceptTerms = createServerFn({ method: "POST" })

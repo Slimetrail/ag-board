@@ -16,6 +16,39 @@ export type MailSendResult = {
 /** Browser event after Accept/Deny so banners, badges, and threads refetch. */
 export const INVITES_CHANGED = "ag-invites-changed";
 
+export type InviteListingPhoto = {
+  id: number;
+  title: string;
+  slug: string;
+  imagePath: string;
+};
+
+/** Map a joined invite+listing row so owner notices can show that post's photo. */
+export function inviteListingFromRow(row: {
+  listingId: number | null;
+  listingTitle: string | null;
+  listingSlug: string | null;
+  listingImagePath: string | null;
+}): InviteListingPhoto | null {
+  if (row.listingId == null || !row.listingTitle || !row.listingSlug) {
+    return null;
+  }
+  return {
+    id: row.listingId,
+    title: row.listingTitle,
+    slug: row.listingSlug,
+    imagePath: (row.listingImagePath ?? "").trim(),
+  };
+}
+
+/** Listing photo for a tiny tile. Empty path means show the title fallback. */
+export function listingThumbSrc(
+  imagePath: string | null | undefined,
+): string | null {
+  const path = imagePath?.trim();
+  return path ? path : null;
+}
+
 /** Incoming invites that are about a listing, not a profile-only request. */
 export function listingInterestInvites<T extends { listingId: number | null }>(
   incoming: T[],

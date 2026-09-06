@@ -250,6 +250,17 @@ export function shouldShowInviteRespond(relation: string): boolean {
   return relation === "pending-in";
 }
 
+/** Sender can withdraw only while the owner has not Accept/Deny'd. */
+export function shouldShowCancelRequest(relation: string): boolean {
+  return relation === "pending-out";
+}
+
+export const CANCEL_REQUEST_LABEL = "Cancel request";
+
+export function cancelRequestLabel(busy: boolean): string {
+  return busy ? "Canceling…" : CANCEL_REQUEST_LABEL;
+}
+
 /** Listing viewer can mark Interested unless they already got a request, connected, or own the card. */
 export function shouldShowInterested(relation: string): boolean {
   return relation === "none" || relation === "pending-out";

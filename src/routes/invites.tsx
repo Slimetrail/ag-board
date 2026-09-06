@@ -1,10 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
+import { CancelRequestButton } from "@/components/cancel-request-button";
 import { FarmAvatar } from "@/components/farm-avatar";
 import { InviteRespondButtons } from "@/components/invite-respond-buttons";
+import { ListingThumb } from "@/components/listing-thumb";
 import { RequireUse } from "@/components/require-use";
 import { Button } from "@/components/ui/button";
+import { INVITES_CHANGED } from "@/lib/interest-notify";
 import {
+  cancelInvite,
   listInvites,
   respondInvite,
   type InviteRow,
@@ -78,7 +82,25 @@ function InvitesList() {
           </InviteGroup>
           <InviteGroup title="Sent" empty="You haven't invited anyone yet.">
             {outgoing.map((invite) => (
-              <InviteCard key={invite.id} invite={invite} />
+              <InviteCard
+                key={invite.id}
+                invite={invite}
+                actions={
+                  <CancelRequestButton
+                    size="sm"
+                    className="w-full sm:w-auto"
+                    onCancel={() =>
+                      void cancelInvite({ data: { id: invite.id } })
+                        .then(() => {
+                          if (typeof window !== "undefined") {
+                            window.dispatchEvent(new Event(INVITES_CHANGED));
+                          }
+                          return load();
+                        })
+                    }
+                  />
+                }
+              />
             ))}
           </InviteGroup>
           <InviteGroup title="Connected" empty="No connections yet.">
@@ -137,6 +159,19 @@ function InviteCard({
   return (
     <div className="flex flex-col gap-3 rounded-xl bg-surface p-4 shadow-[var(--shadow-card)] sm:flex-row sm:items-center">
       <div className="flex min-w-0 flex-1 items-center gap-3">
+        {invite.listing ? (
+          <Link
+            to="/listing/$slug"
+            params={{ slug: invite.listing.slug }}
+            className="shrink-0"
+            aria-label={invite.listing.title}
+          >
+            <ListingThumb
+              src={invite.listing.imagePath}
+              title={invite.listing.title}
+            />
+          </Link>
+        ) : null}
         <FarmAvatar
           name={invite.other.username}
           src={invite.other.imagePath}

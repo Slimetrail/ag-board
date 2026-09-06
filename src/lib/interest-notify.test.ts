@@ -9,7 +9,9 @@ import {
   interestEmailSubject,
   interestEmailText,
   interestedNeighborHeadline,
+  inviteListingFromRow,
   listingInterestInvites,
+  listingThumbSrc,
   notifyListingOwnerOfInterest,
   pendingInterestLabel,
   resolvePublicAppOrigin,
@@ -59,6 +61,70 @@ describe("interest email copy", () => {
     assert.equal(text.includes("jane_farm@"), false);
     assert.equal(text.includes("phone"), false);
     assert.equal(text.includes("address"), false);
+  });
+});
+
+describe("invite listing photo", () => {
+  it("maps the listing image onto each invite so multi-post owners can tell them apart", () => {
+    assert.deepEqual(
+      inviteListingFromRow({
+        listingId: 4,
+        listingTitle: "Fresh eggs",
+        listingSlug: "fresh-eggs-ab12",
+        listingImagePath: "/images/eggs.jpg",
+      }),
+      {
+        id: 4,
+        title: "Fresh eggs",
+        slug: "fresh-eggs-ab12",
+        imagePath: "/images/eggs.jpg",
+      },
+    );
+    assert.equal(
+      inviteListingFromRow({
+        listingId: null,
+        listingTitle: "Fresh eggs",
+        listingSlug: "fresh-eggs-ab12",
+        listingImagePath: "/images/eggs.jpg",
+      }),
+      null,
+    );
+    assert.equal(listingThumbSrc("/images/hay.jpg"), "/images/hay.jpg");
+    assert.equal(listingThumbSrc("  "), null);
+    assert.equal(listingThumbSrc(null), null);
+  });
+
+  it("loads listing image_path on listInvites and tiles it on owner notices", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const profiles = readFileSync(join(here, "profiles.ts"), "utf8");
+    assert.match(profiles, /l\.image_path as listing_image_path/);
+    assert.match(profiles, /inviteListingFromRow/);
+    assert.match(profiles, /status = 'withdrawn'/);
+    assert.match(profiles, /from_user_id = \$2 and status = 'pending'/);
+
+    const banner = readFileSync(
+      join(here, "../components/owner-interest-banner.tsx"),
+      "utf8",
+    );
+    assert.match(banner, /ListingThumb/);
+    assert.match(banner, /invite\.listing\.imagePath/);
+    assert.match(banner, /INTEREST_POLL_MS/);
+    assert.match(banner, /INTEREST_POPUP_KEY/);
+    assert.match(banner, /setInterval\(onChange, INTEREST_POLL_MS\)/);
+    assert.match(banner, /sessionStorage\.setItem\(`\$\{INTEREST_POPUP_KEY\}/);
+
+    const inbox = readFileSync(
+      join(here, "../components/listing-invite-inbox.tsx"),
+      "utf8",
+    );
+    assert.match(inbox, /OwnerInterestRows/);
+    assert.match(inbox, /showListing/);
+
+    const listingsPage = readFileSync(join(here, "../routes/listings.tsx"), "utf8");
+    assert.match(listingsPage, /OwnerInterestBanner showListing/);
+    assert.match(listingsPage, /interestCounts=\{interestCounts\}/);
+    const grid = readFileSync(join(here, "../components/listing-grid.tsx"), "utf8");
+    assert.match(grid, /pendingInterest=\{interestCounts/);
   });
 });
 

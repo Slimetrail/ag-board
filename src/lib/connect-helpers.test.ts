@@ -13,6 +13,8 @@ import {
   isConnectedInviteStatus,
   isEndedInviteStatus,
   hasCompleteCategoryScores,
+  CANCEL_REQUEST_LABEL,
+  cancelRequestLabel,
   interestedButtonLabel,
   legacyStarsFromCategoryScores,
   legacyStarsToCategoryScores,
@@ -28,6 +30,7 @@ import {
   shouldKeepThreadInInbox,
   shouldRenderOwnerListingThreads,
   shouldRenderVisitorThread,
+  shouldShowCancelRequest,
   shouldShowConnectedChat,
   shouldShowInterested,
   shouldShowInviteRespond,
@@ -356,6 +359,48 @@ describe("connect flow actions", () => {
     assert.equal(shouldShowInterested("pending-in"), false);
     assert.equal(shouldShowInterested("connected"), false);
     assert.equal(shouldShowInterested("self"), false);
+  });
+
+  it("offers Cancel request only while the invite is still pending-out", () => {
+    assert.equal(shouldShowCancelRequest("pending-out"), true);
+    assert.equal(shouldShowCancelRequest("pending-in"), false);
+    assert.equal(shouldShowCancelRequest("connected"), false);
+    assert.equal(shouldShowCancelRequest("none"), false);
+    assert.equal(shouldShowCancelRequest("self"), false);
+    assert.equal(CANCEL_REQUEST_LABEL, "Cancel request");
+    assert.equal(cancelRequestLabel(false), "Cancel request");
+    assert.equal(cancelRequestLabel(true), "Canceling…");
+  });
+
+  it("wires Cancel request onto pending-out surfaces", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const button = readFileSync(
+      join(here, "../components/interested-button.tsx"),
+      "utf8",
+    );
+    assert.match(button, /CancelRequestButton/);
+    assert.match(button, /cancelInvite/);
+    assert.match(button, /shouldShowCancelRequest/);
+    assert.doesNotMatch(button, /Withdraw Interest/);
+
+    const panel = readFileSync(join(here, "../components/connect-panel.tsx"), "utf8");
+    assert.match(panel, /CancelRequestButton/);
+    assert.match(panel, /cancelInvite/);
+    assert.match(panel, /shouldShowCancelRequest/);
+
+    const invitesPage = readFileSync(join(here, "../routes/invites.tsx"), "utf8");
+    assert.match(invitesPage, /CancelRequestButton/);
+    assert.match(invitesPage, /cancelInvite/);
+    assert.match(invitesPage, /ListingThumb/);
+
+    const profiles = readFileSync(join(here, "profiles.ts"), "utf8");
+    assert.match(profiles, /export const cancelInvite/);
+    assert.match(profiles, /status = 'withdrawn'/);
+    assert.match(profiles, /from_user_id = \$2 and status = 'pending'/);
+    assert.match(
+      profiles,
+      /from_user_id = \$1 and to_user_id = \$2 and status = 'pending'/,
+    );
   });
 
   it("labels Interested as a request, not a bookmark", () => {
