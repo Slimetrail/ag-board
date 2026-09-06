@@ -7,6 +7,7 @@ import { InviteBadge } from "@/components/invite-badge";
 import { OfficeNav } from "@/components/office-nav";
 import { ProfileEnsure } from "@/components/profile-ensure";
 import { Wordmark } from "@/components/brand-mark";
+import { AuthEntryLinks } from "@/components/auth-entry-links";
 import { Button } from "@/components/ui/button";
 import { UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -100,21 +101,28 @@ export function SiteShell({ children }: { children: ReactNode }) {
             ) : isPending ? (
               <div className="ml-2 h-8 w-24 animate-pulse rounded-md bg-wash" />
             ) : (
-              <Button asChild variant="outline" className="ml-2">
-                <Link to="/login">Sign in</Link>
-              </Button>
+              <div className="ml-2 flex items-center gap-2">
+                <AuthEntryLinks />
+              </div>
             )}
           </nav>
 
-          <button
-            type="button"
-            className="relative flex size-11 items-center justify-center rounded-md text-fg lg:hidden"
-            onClick={() => setOpen((v) => !v)}
-            aria-expanded={open}
-            aria-label={open ? "Close menu" : "Open menu"}
-          >
-            {open ? <X className="size-5" /> : <Menu className="size-5" />}
-          </button>
+          <div className="flex items-center gap-2 lg:hidden">
+            {user ? null : isPending ? (
+              <div className="h-8 w-28 animate-pulse rounded-md bg-wash" />
+            ) : (
+              <AuthEntryLinks compact />
+            )}
+            <button
+              type="button"
+              className="relative flex size-11 items-center justify-center rounded-md text-fg"
+              onClick={() => setOpen((v) => !v)}
+              aria-expanded={open}
+              aria-label={open ? "Close menu" : "Open menu"}
+            >
+              {open ? <X className="size-5" /> : <Menu className="size-5" />}
+            </button>
+          </div>
         </div>
         {open ? (
           <div className="border-t border-border bg-bg px-4 py-3 lg:hidden">
