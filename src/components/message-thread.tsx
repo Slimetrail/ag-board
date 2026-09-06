@@ -10,7 +10,13 @@ import {
 import { timeAgo } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { NeighborRating, StarPick } from "@/components/neighbor-rating";
+import {
+  canSubmitCategoryRating,
+  CategoryStarPick,
+  formatSubmittedRating,
+  NeighborRating,
+} from "@/components/neighbor-rating";
+import type { PartialCategoryScores } from "@/lib/connect-helpers";
 
 export function MessageThread({
   otherUserId,
@@ -26,6 +32,11 @@ export function MessageThread({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [ratingPending, setRatingPending] = useState(false);
+  const [draftScores, setDraftScores] = useState<PartialCategoryScores>({
+    honesty: null,
+    courtesy: null,
+    reliability: null,
+  });
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -93,13 +104,20 @@ export function MessageThread({
     }
   }
 
-  async function rate(stars: number) {
-    if (!thread) return;
+  async function rate() {
+    if (!thread || !canSubmitCategoryRating(draftScores)) return;
     setRatingPending(true);
     setError(null);
     try {
       setThread(
-        await submitRating({ data: { threadId: thread.threadId, stars } }),
+        await submitRating({
+          data: {
+            threadId: thread.threadId,
+            honesty: draftScores.honesty!,
+            courtesy: draftScores.courtesy!,
+            reliability: draftScores.reliability!,
+          },
+        }),
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save that rating.");
@@ -131,6 +149,7 @@ export function MessageThread({
         className="mt-2"
         average={thread.other.ratingAverage}
         count={thread.other.ratingCount}
+        categoryAverages={thread.other.categoryAverages}
       />
 
       <div className="mt-3 max-h-72 space-y-3 overflow-y-auto rounded-lg bg-wash/60 p-3">
@@ -183,22 +202,29 @@ export function MessageThread({
             <p className="text-sm text-muted">Deal marked done.</p>
             {thread.myRating ? (
               <p className="text-sm text-muted">
-                You rated @{handle} {thread.myRating} star
-                {thread.myRating === 1 ? "" : "s"}.
+                You rated @{handle}: {formatSubmittedRating(thread.myRating)}.
                 {thread.theyRated
                   ? " They left a rating too."
                   : " Waiting on their rating."}
               </p>
             ) : (
-              <div>
+              <div className="grid gap-3">
                 <p className="text-sm text-muted">
-                  Leave one 1–5 star rating for @{handle}.
+                  Rate @{handle} on all three — Honesty, Courtesy, and
+                  Reliability.
                 </p>
-                <StarPick
-                  value={null}
+                <CategoryStarPick
+                  scores={draftScores}
                   disabled={ratingPending}
-                  onPick={(stars) => void rate(stars)}
+                  onChange={setDraftScores}
                 />
+                <Button
+                  type="button"
+                  disabled={ratingPending || !canSubmitCategoryRating(draftScores)}
+                  onClick={() => void rate()}
+                >
+                  {ratingPending ? "Saving…" : "Submit rating"}
+                </Button>
               </div>
             )}
           </div>

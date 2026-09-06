@@ -23,6 +23,103 @@ export function canSubmitRating(dealDone: boolean, alreadyRated: boolean): boole
   return dealDone && !alreadyRated;
 }
 
+export const RATING_CATEGORIES = ["honesty", "courtesy", "reliability"] as const;
+export type RatingCategory = (typeof RATING_CATEGORIES)[number];
+
+export type CategoryScores = {
+  honesty: number;
+  courtesy: number;
+  reliability: number;
+};
+
+export type PartialCategoryScores = {
+  honesty: number | null;
+  courtesy: number | null;
+  reliability: number | null;
+};
+
+export type CategoryAverages = {
+  honesty: number | null;
+  courtesy: number | null;
+  reliability: number | null;
+};
+
+export const RATING_CATEGORY_LABELS: Record<RatingCategory, string> = {
+  honesty: "Honesty",
+  courtesy: "Courtesy",
+  reliability: "Reliability",
+};
+
+/** Info-button copy — word for word, including curly quotes. */
+export const RATING_CATEGORY_INFO: Record<RatingCategory, string> = {
+  honesty:
+    "the listing matched what showed up. Weight, condition, price, no bait-and-switch. That\u2019s \u201cjust weights and measures\u201d and \u201clet your yes be yes.\u201d",
+  courtesy:
+    "polite, respectful, no yelling at the gate. That\u2019s the \u201clove your neighbor\u201d part people feel immediately.",
+  reliability:
+    "they came when they said they would, paid or delivered as agreed, and didn\u2019t leave you hanging. That\u2019s faithfulness in a small thing.",
+};
+
+export function isValidCategoryScore(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 5;
+}
+
+export function hasCompleteCategoryScores(
+  scores: PartialCategoryScores,
+): scores is CategoryScores {
+  return (
+    isValidCategoryScore(scores.honesty) &&
+    isValidCategoryScore(scores.courtesy) &&
+    isValidCategoryScore(scores.reliability)
+  );
+}
+
+/**
+ * Overall for one rating-set is the unrounded mean of its three category
+ * scores. Public overall is the mean of those set overalls — the same number
+ * as the mean of every category score, because each set always has three.
+ */
+export function ratingSetOverall(scores: CategoryScores): number {
+  return (scores.honesty + scores.courtesy + scores.reliability) / 3;
+}
+
+/** Legacy single-star rows become a rating-set with all three categories equal. */
+export function legacyStarsToCategoryScores(stars: number): CategoryScores {
+  return { honesty: stars, courtesy: stars, reliability: stars };
+}
+
+/** Integer kept on the legacy `stars` column; display math uses categories. */
+export function legacyStarsFromCategoryScores(scores: CategoryScores): number {
+  return Math.min(5, Math.max(1, Math.round(ratingSetOverall(scores))));
+}
+
+export function summarizeRatingSets(sets: CategoryScores[]): {
+  overallAverage: number | null;
+  honestyAverage: number | null;
+  courtesyAverage: number | null;
+  reliabilityAverage: number | null;
+  count: number;
+} {
+  if (sets.length === 0) {
+    return {
+      overallAverage: null,
+      honestyAverage: null,
+      courtesyAverage: null,
+      reliabilityAverage: null,
+      count: 0,
+    };
+  }
+  const mean = (values: number[]) =>
+    Math.round((values.reduce((total, value) => total + value, 0) / values.length) * 10) / 10;
+  return {
+    overallAverage: mean(sets.map(ratingSetOverall)),
+    honestyAverage: mean(sets.map((set) => set.honesty)),
+    courtesyAverage: mean(sets.map((set) => set.courtesy)),
+    reliabilityAverage: mean(sets.map((set) => set.reliability)),
+    count: sets.length,
+  };
+}
+
 export function summarizeRatings(stars: number[]): {
   average: number | null;
   count: number;

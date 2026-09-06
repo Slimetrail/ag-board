@@ -6,9 +6,12 @@ import { slugify } from "@/lib/catalog";
 import {
   roundRatingAverage,
   shouldRevealPersonal,
+  type CategoryAverages,
 } from "@/lib/connect-helpers";
 import { getSql, type Sql } from "@/lib/db";
 import { USER_IMAGE_PATH_MAX } from "@/lib/upload-path";
+
+export type { CategoryAverages };
 
 export type PublicProfile = {
   userId: string;
@@ -18,6 +21,7 @@ export type PublicProfile = {
   bio: string;
   ratingAverage: number | null;
   ratingCount: number;
+  categoryAverages: CategoryAverages;
 };
 
 export type PersonalProfile = {
@@ -75,12 +79,23 @@ const USERNAME = z
   .toLowerCase()
   .regex(/^[a-z0-9_]{3,24}$/, "Usernames are 3–24 letters, numbers, or _.");
 
+const emptyRating = {
+  average: null,
+  count: 0,
+  categoryAverages: {
+    honesty: null,
+    courtesy: null,
+    reliability: null,
+  },
+};
+
 function publicOf(
   row: ProfileRow,
-  rating: { average: number | null; count: number } = {
-    average: null,
-    count: 0,
-  },
+  rating: {
+    average: number | null;
+    count: number;
+    categoryAverages: CategoryAverages;
+  } = emptyRating,
 ): PublicProfile {
   return {
     userId: row.user_id,
@@ -90,24 +105,56 @@ function publicOf(
     bio: row.bio,
     ratingAverage: rating.average,
     ratingCount: rating.count,
+    categoryAverages: { ...rating.categoryAverages },
   };
 }
 
 async function loadRatings(
   sql: Sql,
   userIds: string[],
-): Promise<Map<string, { average: number | null; count: number }>> {
-  const map = new Map<string, { average: number | null; count: number }>();
-  for (const id of userIds) map.set(id, { average: null, count: 0 });
+): Promise<
+  Map<
+    string,
+    {
+      average: number | null;
+      count: number;
+      categoryAverages: CategoryAverages;
+    }
+  >
+> {
+  const map = new Map<
+    string,
+    {
+      average: number | null;
+      count: number;
+      categoryAverages: CategoryAverages;
+    }
+  >();
+  for (const id of userIds) {
+    map.set(id, {
+      ...emptyRating,
+      categoryAverages: { ...emptyRating.categoryAverages },
+    });
+  }
   const unique = [...new Set(userIds.filter(Boolean))];
   if (unique.length === 0) return map;
   const placeholders = unique.map((_, index) => `$${index + 1}`).join(", ");
   const rows = await sql.query<{
     rated_user_id: string;
     avg: string | number | null;
+    honesty_avg: string | number | null;
+    courtesy_avg: string | number | null;
+    reliability_avg: string | number | null;
     n: number;
   }>(
-    `select rated_user_id, avg(stars) as avg, count(*)::int as n
+    // Public overall = mean of per-set overalls ((h+c+r)/3). Same as the
+    // mean of all category scores because every rating-set has three scores.
+    `select rated_user_id,
+            avg((honesty + courtesy + reliability)::numeric / 3) as avg,
+            avg(honesty) as honesty_avg,
+            avg(courtesy) as courtesy_avg,
+            avg(reliability) as reliability_avg,
+            count(*)::int as n
      from connection_ratings
      where rated_user_id in (${placeholders})
      group by rated_user_id`,
@@ -117,6 +164,11 @@ async function loadRatings(
     map.set(row.rated_user_id, {
       average: roundRatingAverage(row.avg),
       count: row.n,
+      categoryAverages: {
+        honesty: roundRatingAverage(row.honesty_avg),
+        courtesy: roundRatingAverage(row.courtesy_avg),
+        reliability: roundRatingAverage(row.reliability_avg),
+      },
     });
   }
   return map;

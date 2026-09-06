@@ -3,7 +3,10 @@ import { z } from "zod";
 import { authMiddleware } from "@/lib/auth/middleware";
 import {
   canSubmitRating,
+  hasCompleteCategoryScores,
+  legacyStarsFromCategoryScores,
   pairUserIds,
+  type CategoryScores,
 } from "@/lib/connect-helpers";
 import { getSql, type Sql } from "@/lib/db";
 import { loadPublicProfiles, type PublicProfile } from "@/lib/profiles";
@@ -20,7 +23,7 @@ export type ThreadState = {
   listingId: number | null;
   other: PublicProfile;
   dealDone: boolean;
-  myRating: number | null;
+  myRating: CategoryScores | null;
   theyRated: boolean;
   messages: ChatMessage[];
 };
@@ -160,14 +163,26 @@ async function loadRatingState(
   sql: Sql,
   threadId: number,
   me: string,
-): Promise<{ myRating: number | null; theyRated: boolean }> {
-  const rows = await sql.query<{ rater_user_id: string; stars: number }>(
-    `select rater_user_id, stars from connection_ratings where thread_id = $1`,
+): Promise<{ myRating: CategoryScores | null; theyRated: boolean }> {
+  const rows = await sql.query<{
+    rater_user_id: string;
+    honesty: number;
+    courtesy: number;
+    reliability: number;
+  }>(
+    `select rater_user_id, honesty, courtesy, reliability
+     from connection_ratings where thread_id = $1`,
     [threadId],
   );
   const mine = rows.find((row) => row.rater_user_id === me);
   return {
-    myRating: mine?.stars ?? null,
+    myRating: mine
+      ? {
+          honesty: mine.honesty,
+          courtesy: mine.courtesy,
+          reliability: mine.reliability,
+        }
+      : null,
     theyRated: rows.some((row) => row.rater_user_id !== me),
   };
 }
@@ -294,11 +309,21 @@ export const submitRating = createServerFn({ method: "POST" })
   .validator(
     z.object({
       threadId: z.number().int().positive(),
-      stars: z.number().int().min(1).max(5),
+      honesty: z.number().int().min(1).max(5),
+      courtesy: z.number().int().min(1).max(5),
+      reliability: z.number().int().min(1).max(5),
     }),
   )
   .middleware([authMiddleware])
   .handler(async ({ context, data }) => {
+    const scores = {
+      honesty: data.honesty,
+      courtesy: data.courtesy,
+      reliability: data.reliability,
+    };
+    if (!hasCompleteCategoryScores(scores)) {
+      throw new Error("Rate Honesty, Courtesy, and Reliability.");
+    }
     const sql = await getSql();
     const row = await requireThreadMember(sql, data.threadId, context.userId);
     if (!canSubmitRating(Boolean(row.deal_done_at), false)) {
@@ -314,9 +339,18 @@ export const submitRating = createServerFn({ method: "POST" })
     }
     const ratedUserId = otherIdOnThread(row, context.userId);
     await sql.query(
-      `insert into connection_ratings (thread_id, rater_user_id, rated_user_id, stars)
-       values ($1, $2, $3, $4)`,
-      [data.threadId, context.userId, ratedUserId, data.stars],
+      `insert into connection_ratings
+         (thread_id, rater_user_id, rated_user_id, stars, honesty, courtesy, reliability)
+       values ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        data.threadId,
+        context.userId,
+        ratedUserId,
+        legacyStarsFromCategoryScores(scores),
+        scores.honesty,
+        scores.courtesy,
+        scores.reliability,
+      ],
     );
     return threadState(sql, row, context.userId);
   });
