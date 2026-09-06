@@ -6,10 +6,12 @@ import { fileURLToPath } from "node:url";
 import {
   BOARD_VISIBLE_SQL,
   EMPTY_LISTING_FORM,
+  UNPUBLISH_LISTING_SQL,
   draftPlace,
   draftSaveInput,
   isListingFormDirty,
   listingFormFromListing,
+  unpublishListingFromBoard,
 } from "./listing-draft.ts";
 
 describe("BOARD_VISIBLE_SQL", () => {
@@ -32,6 +34,43 @@ describe("BOARD_VISIBLE_SQL", () => {
       source,
       /from listings\s+where available = true\s+group by category/,
     );
+  });
+});
+
+describe("UNPUBLISH_LISTING_SQL", () => {
+  it("hides a posted listing without turning it into a draft", () => {
+    assert.match(UNPUBLISH_LISTING_SQL, /available = false/);
+    assert.match(UNPUBLISH_LISTING_SQL, /deciding_at = null/);
+    assert.doesNotMatch(UNPUBLISH_LISTING_SQL, /is_draft/);
+    assert.doesNotMatch(UNPUBLISH_LISTING_SQL, /published_at/);
+  });
+
+  it("is the hide Deal done and owner Delete both use", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const messages = readFileSync(join(here, "messages.ts"), "utf8");
+    const listings = readFileSync(join(here, "listings.ts"), "utf8");
+    assert.match(messages, /export const markDealDone/);
+    assert.match(messages, /unpublishListingFromBoard/);
+    assert.match(messages, /if \((done|row)\.listing_id\)/);
+    assert.match(listings, /unpublishListingFromBoard/);
+    assert.doesNotMatch(
+      listings,
+      /update listings set available = false, deciding_at = null where id = \$1/,
+    );
+  });
+
+  it("runs the shared update for a listing id", async () => {
+    const calls: { text: string; params: unknown[] }[] = [];
+    await unpublishListingFromBoard(
+      {
+        query(text, params) {
+          calls.push({ text, params: params ?? [] });
+          return Promise.resolve([]);
+        },
+      },
+      42,
+    );
+    assert.deepEqual(calls, [{ text: UNPUBLISH_LISTING_SQL, params: [42] }]);
   });
 });
 

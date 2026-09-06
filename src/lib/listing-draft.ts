@@ -11,6 +11,25 @@ import { USER_IMAGE_PATH_MAX } from "./upload-path.ts";
 /** Public board / category tiles / listing pages — never drafts. */
 export const BOARD_VISIBLE_SQL = "available = true and is_draft = false";
 
+/**
+ * Owner Delete and Deal done — same hide. Off the public board (`available =
+ * false` fails BOARD_VISIBLE_SQL) without flipping `is_draft`. The row stays
+ * on Your listings (posted, not a draft) so the owner can still find it.
+ */
+export const UNPUBLISH_LISTING_SQL =
+  "update listings set available = false, deciding_at = null where id = $1";
+
+type QuerySql = {
+  query(text: string, params?: unknown[]): Promise<unknown>;
+};
+
+export async function unpublishListingFromBoard(
+  sql: QuerySql,
+  listingId: number,
+): Promise<void> {
+  await sql.query(UNPUBLISH_LISTING_SQL, [listingId]);
+}
+
 export type ListingFormState = {
   draftId: number | null;
   category: Category;
