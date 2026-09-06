@@ -44,7 +44,7 @@ export function isEndedInviteStatus(status: string): boolean {
   return status === "ended";
 }
 
-/** Live private thread: no ended_at. Deal done stamps ended_at. */
+/** Live private thread: no ended_at. Deal done and Disconnect stamp ended_at. */
 export function isActiveConnectionThread(
   endedAt?: string | Date | null,
 ): boolean {
@@ -259,6 +259,26 @@ export const CANCEL_REQUEST_LABEL = "Cancel request";
 
 export function cancelRequestLabel(busy: boolean): string {
   return busy ? "Canceling…" : CANCEL_REQUEST_LABEL;
+}
+
+/**
+ * Either party on an active thread can leave. Same end-connection path as
+ * Deal done (invite `ended`, thread `ended_at`, relation back to `none`)
+ * without unpublishing the listing or unlocking ratings.
+ * Hidden after Deal done / already ended.
+ */
+export function canDisconnectConnection(input: {
+  connectionEnded: boolean;
+  dealDone: boolean;
+}): boolean {
+  return !input.connectionEnded && !input.dealDone;
+}
+
+/** Neutral label — owner and visitor both leave an active connection. */
+export const DISCONNECT_LABEL = "Disconnect";
+
+export function disconnectLabel(busy: boolean): string {
+  return busy ? "Disconnecting…" : DISCONNECT_LABEL;
 }
 
 /** Listing viewer can mark Interested unless they already got a request, connected, or own the card. */

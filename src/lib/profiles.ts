@@ -303,7 +303,7 @@ async function relationBetween(
   if (accepted) {
     return { relation: "connected", inviteId: accepted.id };
   }
-  // `ended` (Deal done) and `declined` are not connected — Interested again.
+  // `ended` (Deal done or Disconnect) and `declined` are not connected — Interested again.
   const pending = rows.find((row) => row.status === "pending");
   if (!pending) return { relation: "none", inviteId: null };
   return {
