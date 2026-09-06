@@ -4,23 +4,43 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  IMPROVEMENT_SUGGESTION_LABEL,
   YOUR_LISTINGS_LABEL,
   YOUR_LISTINGS_PATH,
   hamburgerNav,
 } from "./nav.ts";
 
 describe("hamburgerNav", () => {
-  it("places Your listings directly under The board", () => {
+  it("returns only the ordered hamburger items", () => {
     const items = hamburgerNav();
-    const board = items.findIndex((item) => item.label === "The board");
-    assert.ok(board >= 0);
-    assert.equal(items[board + 1]?.label, YOUR_LISTINGS_LABEL);
-    assert.equal(items[board + 1]?.to, YOUR_LISTINGS_PATH);
-    assert.notEqual(YOUR_LISTINGS_LABEL, "You're Listing");
+    assert.deepEqual(
+      items.map((item) => item.label),
+      [
+        "The board",
+        YOUR_LISTINGS_LABEL,
+        "Pinned",
+        "Learn",
+        "About",
+        IMPROVEMENT_SUGGESTION_LABEL,
+      ],
+    );
+    assert.deepEqual(
+      items.map((item) => item.to),
+      ["/market", YOUR_LISTINGS_PATH, "/saved", "/learn", "/about", "/improve"],
+    );
+    assert.equal(YOUR_LISTINGS_LABEL, "Your listings");
+    assert.equal(IMPROVEMENT_SUGGESTION_LABEL, "Improvement suggestion");
     assert.equal(
       items.filter((item) => item.label === YOUR_LISTINGS_LABEL).length,
       1,
     );
+    for (const label of ["Share", "Needs", "Leases", "Skills", "Improve"]) {
+      assert.equal(
+        items.find((item) => item.label === label),
+        undefined,
+        `hamburger must not include ${label}`,
+      );
+    }
   });
 
   it("is wired into the hamburger menu and owner listings query", () => {
@@ -31,8 +51,14 @@ describe("hamburgerNav", () => {
     assert.match(shell, /lg:hidden/);
     assert.match(shell, /AuthEntryLinks/);
     assert.match(shell, /compact/);
-    assert.match(shell, /Sign in to post/);
+    assert.match(shell, /Post a listing/);
+    assert.match(shell, /OfficeNav/);
     assert.doesNotMatch(shell, /You're Listing/);
+    assert.doesNotMatch(shell, /Sign in to post/);
+    const hamburgerBlock = shell.slice(shell.indexOf("{open ? ("));
+    assert.doesNotMatch(hamburgerBlock, /to="\/messages"/);
+    assert.doesNotMatch(hamburgerBlock, /to="\/profile"/);
+    assert.doesNotMatch(hamburgerBlock, /InviteBadge/);
     const home = readFileSync(join(here, "../routes/index.tsx"), "utf8");
     assert.match(home, /SignedOut/);
     assert.match(home, /AuthEntryLinks/);

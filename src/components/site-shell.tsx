@@ -155,33 +155,10 @@ export function SiteShell({ children }: { children: ReactNode }) {
                 onClick={() => setOpen(false)}
               />
               {user ? (
-                <>
-                  <InviteBadge className="px-3 py-3 text-base" onClick={() => setOpen(false)} />
-                  <Link
-                    to="/messages"
-                    onClick={() => setOpen(false)}
-                    className="rounded-md px-3 py-3 text-base font-medium text-fg hover:bg-wash"
-                  >
-                    Messages
-                  </Link>
-                  <Link
-                    to="/profile"
-                    onClick={() => setOpen(false)}
-                    className="rounded-md px-3 py-3 text-base font-medium text-fg hover:bg-wash"
-                  >
-                    Profile
-                  </Link>
-                  <div className="mt-3 px-1">
-                    <UserButton />
-                  </div>
-                </>
-              ) : (
-                <Button asChild variant="outline" className="mt-2">
-                  <Link to="/login" onClick={() => setOpen(false)}>
-                    Sign in to post
-                  </Link>
-                </Button>
-              )}
+                <div className="mt-3 px-1">
+                  <UserButton />
+                </div>
+              ) : null}
             </nav>
           </div>
         ) : null}
