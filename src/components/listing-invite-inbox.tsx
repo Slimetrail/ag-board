@@ -14,6 +14,7 @@ export function ListingInviteInbox({ listingId }: { listingId: number }) {
         <OwnerInterestRows
           invites={incoming}
           pendingId={pendingId}
+          showListing
           onAccept={(id) => void respond(id, true)}
           onDeny={(id) => void respond(id, false)}
         />

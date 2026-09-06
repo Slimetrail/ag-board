@@ -2,18 +2,27 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Handshake } from "lucide-react";
 import { toast } from "sonner";
+import { CancelRequestButton } from "@/components/cancel-request-button";
 import { Button } from "@/components/ui/button";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import {
   interestedButtonLabel,
+  shouldShowCancelRequest,
   shouldShowInterested,
 } from "@/lib/connect-helpers";
+import { INVITES_CHANGED } from "@/lib/interest-notify";
 import {
+  cancelInvite,
   getConnection,
   sendInvite,
   type ConnectionRelation,
 } from "@/lib/profiles";
 import { cn } from "@/lib/utils";
+
+function notifyInvitesChanged() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(INVITES_CHANGED));
+}
 
 export function InterestedButton({
   ownerUserId,
@@ -38,19 +47,24 @@ export function InterestedButton({
       return;
     }
     let live = true;
-    void getConnection({ data: { userId: ownerUserId } })
-      .then((view) => {
-        if (!live) return;
-        setRelation(view.relation);
-        setReady(true);
-      })
-      .catch(() => {
-        if (!live) return;
-        setRelation("none");
-        setReady(true);
-      });
+    function load() {
+      void getConnection({ data: { userId: ownerUserId } })
+        .then((view) => {
+          if (!live) return;
+          setRelation(view.relation);
+          setReady(true);
+        })
+        .catch(() => {
+          if (!live) return;
+          setRelation("none");
+          setReady(true);
+        });
+    }
+    load();
+    window.addEventListener(INVITES_CHANGED, load);
     return () => {
       live = false;
+      window.removeEventListener(INVITES_CHANGED, load);
     };
   }, [ownerUserId, user, authPending]);
 
@@ -98,14 +112,45 @@ export function InterestedButton({
     }
   }
 
-  const waiting = relation === "pending-out";
+  async function withdraw() {
+    setPending(true);
+    try {
+      await cancelInvite({ data: { toUserId: ownerUserId } });
+      setRelation("none");
+      notifyInvitesChanged();
+      toast("Request canceled", {
+        description: "The owner will no longer see this Interested notice.",
+      });
+    } catch {
+      toast("Could not cancel that request.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  const waiting = shouldShowCancelRequest(relation);
+
+  if (waiting) {
+    return (
+      <div className={cn("flex min-w-[8.5rem] flex-1 flex-col gap-2", className)}>
+        <Button type="button" variant="outline" disabled className="w-full">
+          <Handshake className="size-4" />
+          {interestedButtonLabel(relation, false)}
+        </Button>
+        <CancelRequestButton
+          busy={pending}
+          className="w-full"
+          onCancel={() => void withdraw()}
+        />
+      </div>
+    );
+  }
 
   return (
     <Button
       type="button"
       className={cn(className)}
-      variant={waiting ? "outline" : "default"}
-      disabled={pending || waiting}
+      disabled={pending}
       onClick={() => void markInterested()}
     >
       <Handshake className="size-4" />

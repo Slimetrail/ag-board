@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { FarmAvatar } from "@/components/farm-avatar";
 import { InviteRespondButtons } from "@/components/invite-respond-buttons";
+import { ListingThumb } from "@/components/listing-thumb";
 import { Button } from "@/components/ui/button";
 import {
   INVITES_CHANGED,
@@ -86,6 +87,19 @@ export function OwnerInterestRows({
           className="grid gap-3 rounded-lg bg-wash/60 p-3 sm:grid-cols-[1fr_auto] sm:items-center"
         >
           <div className="flex min-w-0 items-center gap-3">
+            {invite.listing ? (
+              <Link
+                to="/listing/$slug"
+                params={{ slug: invite.listing.slug }}
+                className="shrink-0"
+                aria-label={invite.listing.title}
+              >
+                <ListingThumb
+                  src={invite.listing.imagePath}
+                  title={invite.listing.title}
+                />
+              </Link>
+            ) : null}
             <FarmAvatar
               name={invite.other.username}
               src={invite.other.imagePath}
