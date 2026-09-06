@@ -7,7 +7,11 @@ import {
   bookmarkToast,
   canMarkDealDone,
   canMarkDealPending,
+  canSendOnThread,
   canSubmitRating,
+  isActiveConnectionThread,
+  isConnectedInviteStatus,
+  isEndedInviteStatus,
   hasCompleteCategoryScores,
   interestedButtonLabel,
   legacyStarsFromCategoryScores,
@@ -21,8 +25,10 @@ import {
   shouldDisplayNeighborRating,
   shouldRevealPersonal,
   shouldEmbedConnectPanelThread,
+  shouldKeepThreadInInbox,
   shouldRenderOwnerListingThreads,
   shouldRenderVisitorThread,
+  shouldShowConnectedChat,
   shouldShowInterested,
   shouldShowInviteRespond,
   threadDealStatus,
@@ -78,6 +84,55 @@ describe("ratings", () => {
     assert.equal(canMarkDealDone(false, "pending"), false);
     assert.equal(canSubmitRating(threadDealStatus({ dealDoneAt: "x" }) === "done", false), true);
     assert.equal(canSubmitRating(threadDealStatus({ dealPendingAt: "x" }) === "done", false), false);
+  });
+
+  it("treats ended invites and ended threads as not connected", () => {
+    assert.equal(isConnectedInviteStatus("accepted"), true);
+    assert.equal(isConnectedInviteStatus("ended"), false);
+    assert.equal(isConnectedInviteStatus("pending"), false);
+    assert.equal(isEndedInviteStatus("ended"), true);
+    assert.equal(isEndedInviteStatus("accepted"), false);
+    assert.equal(isActiveConnectionThread(null), true);
+    assert.equal(isActiveConnectionThread("now"), false);
+    assert.equal(shouldShowConnectedChat(false), true);
+    assert.equal(shouldShowConnectedChat(true), false);
+    assert.equal(canSendOnThread(true), false);
+    assert.equal(canSendOnThread(false), true);
+    assert.equal(
+      shouldKeepThreadInInbox({
+        endedAt: null,
+        dealDoneAt: null,
+        alreadyRated: false,
+      }),
+      true,
+    );
+    assert.equal(
+      shouldKeepThreadInInbox({
+        endedAt: "now",
+        dealDoneAt: "now",
+        alreadyRated: false,
+      }),
+      true,
+    );
+    assert.equal(
+      shouldKeepThreadInInbox({
+        endedAt: "now",
+        dealDoneAt: "now",
+        alreadyRated: true,
+      }),
+      false,
+    );
+    assert.equal(
+      shouldKeepThreadInInbox({
+        endedAt: "now",
+        dealDoneAt: null,
+        alreadyRated: false,
+      }),
+      false,
+    );
+    assert.equal(shouldShowInterested("none"), true);
+    assert.equal(shouldRenderVisitorThread("none"), false);
+    assert.equal(shouldRenderVisitorThread("connected"), true);
   });
 
   it("renders the thread for the visitor and the listing owner", () => {
@@ -281,6 +336,18 @@ describe("connect flow actions", () => {
     assert.match(photoChat, /MessageThread/);
     assert.match(photoChat, /shouldRenderVisitorThread/);
     assert.match(photoChat, /shouldRenderOwnerListingThreads/);
+    assert.match(photoChat, /keptOwnerId/);
+  });
+
+  it("hides Connected chat copy after Deal done ends the thread", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const thread = readFileSync(join(here, "../components/message-thread.tsx"), "utf8");
+    assert.match(thread, /shouldShowConnectedChat/);
+    assert.match(thread, /This connection has ended/);
+    const messages = readFileSync(join(here, "messages.ts"), "utf8");
+    assert.match(messages, /endThreadConnection/);
+    assert.match(messages, /status = 'ended'/);
+    assert.match(messages, /canSendOnThread/);
   });
 
   it("lets a listing viewer mark Interested without mixing in Accept/Deny", () => {

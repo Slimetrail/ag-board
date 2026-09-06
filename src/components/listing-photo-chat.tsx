@@ -20,6 +20,7 @@ export function ListingPhotoChat({
 }) {
   const { user, isPending: authPending } = useCurrentUserState();
   const [relation, setRelation] = useState<ConnectionRelation | null>(null);
+  const [keptOwnerId, setKeptOwnerId] = useState<string | null>(null);
 
   useEffect(() => {
     if (authPending) return;
@@ -56,6 +57,12 @@ export function ListingPhotoChat({
     };
   }, [ownerUserId, user, authPending]);
 
+  useEffect(() => {
+    if (relation && shouldRenderVisitorThread(relation)) {
+      setKeptOwnerId(ownerUserId);
+    }
+  }, [relation, ownerUserId]);
+
   if (!user || !relation) return null;
 
   if (shouldRenderOwnerListingThreads(relation)) {
@@ -64,7 +71,10 @@ export function ListingPhotoChat({
     );
   }
 
-  if (shouldRenderVisitorThread(relation)) {
+  if (
+    shouldRenderVisitorThread(relation) ||
+    keptOwnerId === ownerUserId
+  ) {
     return (
       <div className="mt-5 rounded-xl bg-surface p-5 shadow-[var(--shadow-card)] sm:p-6">
         <MessageThread

@@ -30,7 +30,9 @@ export function OwnerListingThreads({
       {threads.length > 1 ? (
         <div className="mb-3 grid gap-2">
           <p className="text-[12px] tracking-wide text-subtle uppercase">
-            Connected neighbors
+            {threads.some((thread) => !thread.connectionEnded)
+              ? "Connected neighbors"
+              : "Rate this deal"}
           </p>
           {threads.map((thread) => {
             const active = thread.other.userId === selected;
