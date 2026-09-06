@@ -42,6 +42,25 @@ export function roundRatingAverage(value: number | string | null | undefined): n
   return Math.round(n * 10) / 10;
 }
 
+/** Show a 4.0+ score after the first rating; hide a weaker score until 6 ratings. */
+export const PUBLIC_RATING_SHOW_MIN_AVERAGE = 4;
+export const PUBLIC_RATING_ESTABLISHED_COUNT = 6;
+
+/**
+ * Public neighbor-rating visibility.
+ * - average >= 4.0: show, even after one rating (a lone 5-star stays visible).
+ * - average < 4.0 and count < 6: hide (protects an early grudge).
+ * - count >= 6: always show; the pattern is established.
+ */
+export function shouldDisplayNeighborRating(
+  average: number | null,
+  count: number,
+): boolean {
+  if (count <= 0 || average == null || !Number.isFinite(average)) return false;
+  if (count >= PUBLIC_RATING_ESTABLISHED_COUNT) return true;
+  return average >= PUBLIC_RATING_SHOW_MIN_AVERAGE;
+}
+
 /** Incoming invite: recipient can Accept or Deny. */
 export function shouldShowInviteRespond(relation: string): boolean {
   return relation === "pending-in";
