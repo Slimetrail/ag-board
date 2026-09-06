@@ -1,7 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   bookmarkToast,
+  canMarkDealDone,
+  canMarkDealPending,
   canSubmitRating,
   hasCompleteCategoryScores,
   interestedButtonLabel,
@@ -15,8 +20,11 @@ import {
   roundRatingAverage,
   shouldDisplayNeighborRating,
   shouldRevealPersonal,
+  shouldRenderOwnerListingThreads,
+  shouldRenderVisitorThread,
   shouldShowInterested,
   shouldShowInviteRespond,
+  threadDealStatus,
   summarizeRatingSets,
   summarizeRatings,
 } from "./connect-helpers.ts";
@@ -52,6 +60,30 @@ describe("ratings", () => {
     assert.equal(canSubmitRating(false, false), false);
     assert.equal(canSubmitRating(true, false), true);
     assert.equal(canSubmitRating(true, true), false);
+  });
+
+  it("lets only the listing owner walk Deal pending then Deal done", () => {
+    assert.equal(threadDealStatus({}), "open");
+    assert.equal(threadDealStatus({ dealPendingAt: "now" }), "pending");
+    assert.equal(
+      threadDealStatus({ dealPendingAt: "now", dealDoneAt: "later" }),
+      "done",
+    );
+    assert.equal(canMarkDealPending(true, "open"), true);
+    assert.equal(canMarkDealPending(false, "open"), false);
+    assert.equal(canMarkDealPending(true, "pending"), false);
+    assert.equal(canMarkDealDone(true, "pending"), true);
+    assert.equal(canMarkDealDone(true, "open"), false);
+    assert.equal(canMarkDealDone(false, "pending"), false);
+    assert.equal(canSubmitRating(threadDealStatus({ dealDoneAt: "x" }) === "done", false), true);
+    assert.equal(canSubmitRating(threadDealStatus({ dealPendingAt: "x" }) === "done", false), false);
+  });
+
+  it("renders the thread for the visitor and the listing owner", () => {
+    assert.equal(shouldRenderVisitorThread("connected"), true);
+    assert.equal(shouldRenderVisitorThread("self"), false);
+    assert.equal(shouldRenderOwnerListingThreads("self"), true);
+    assert.equal(shouldRenderOwnerListingThreads("connected"), false);
   });
 
   it("averages to one decimal", () => {
@@ -208,6 +240,18 @@ describe("connect flow actions", () => {
     assert.equal(shouldShowInviteRespond("pending-out"), false);
     assert.equal(shouldShowInviteRespond("none"), false);
     assert.equal(shouldShowInviteRespond("connected"), false);
+  });
+
+  it("wires owner threads onto the listing card so both sides see the same chat", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const panel = readFileSync(join(here, "../components/connect-panel.tsx"), "utf8");
+    assert.match(panel, /shouldRenderOwnerListingThreads/);
+    assert.match(panel, /OwnerListingThreads/);
+    assert.match(panel, /shouldRenderVisitorThread/);
+    const messagesPage = readFileSync(join(here, "../routes/messages.tsx"), "utf8");
+    const threadIdx = messagesPage.indexOf("<MessageThread");
+    const listIdx = messagesPage.indexOf("threads.map");
+    assert.ok(threadIdx > 0 && listIdx > threadIdx);
   });
 
   it("lets a listing viewer mark Interested without mixing in Accept/Deny", () => {

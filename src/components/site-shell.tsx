@@ -4,6 +4,7 @@ import { Menu, X } from "lucide-react";
 import { Toaster } from "sonner";
 import { BoardGround, GroundPicker } from "@/components/board-ground";
 import { InviteBadge } from "@/components/invite-badge";
+import { SiteInterestNotice } from "@/components/owner-interest-banner";
 import { OfficeNav } from "@/components/office-nav";
 import { ProfileEnsure } from "@/components/profile-ensure";
 import { Wordmark } from "@/components/brand-mark";
@@ -164,7 +165,10 @@ export function SiteShell({ children }: { children: ReactNode }) {
         ) : null}
       </header>
 
-      <main className="flex-1">{children}</main>
+      <main className="flex-1">
+        {user ? <SiteInterestNotice /> : null}
+        {children}
+      </main>
 
       <footer className="border-t border-border bg-wash/60">
         <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-10 sm:px-6 md:flex-row md:items-end md:justify-between">

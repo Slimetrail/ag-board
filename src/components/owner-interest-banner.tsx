@@ -1,8 +1,14 @@
 import { useEffect, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { FarmAvatar } from "@/components/farm-avatar";
 import { InviteRespondButtons } from "@/components/invite-respond-buttons";
-import { interestedNeighborHeadline } from "@/lib/interest-notify";
+import { Button } from "@/components/ui/button";
+import {
+  INVITES_CHANGED,
+  interestedNeighborHeadline,
+  listingInterestInvites,
+  shouldShowSiteInterestNotice,
+} from "@/lib/interest-notify";
 import {
   listInvites,
   respondInvite,
@@ -10,7 +16,8 @@ import {
 } from "@/lib/profiles";
 import { cn } from "@/lib/utils";
 
-export const INVITES_CHANGED = "ag-invites-changed";
+const INTEREST_POLL_MS = 8000;
+const INTEREST_POPUP_KEY = "ag-interest-popup-seen";
 
 function notifyInvitesChanged() {
   if (typeof window === "undefined") return;
@@ -35,7 +42,13 @@ export function useIncomingInvites(listingId?: number) {
       void load().catch(() => setIncoming([]));
     };
     window.addEventListener(INVITES_CHANGED, onChange);
-    return () => window.removeEventListener(INVITES_CHANGED, onChange);
+    const timer = window.setInterval(onChange, INTEREST_POLL_MS);
+    window.addEventListener("focus", onChange);
+    return () => {
+      window.removeEventListener(INVITES_CHANGED, onChange);
+      window.removeEventListener("focus", onChange);
+      window.clearInterval(timer);
+    };
   }, [listingId]);
 
   async function respond(id: number, accept: boolean) {
@@ -155,5 +168,96 @@ export function OwnerInterestBanner({
         />
       </div>
     </section>
+  );
+}
+
+/** Banner + first-open popup so listing owners see Interested off the listing. */
+export function SiteInterestNotice() {
+  const { incoming, pendingId, respond } = useIncomingInvites();
+  const listingInvites = listingInterestInvites(incoming);
+  const interestKey = listingInvites
+    .map((row) => row.id)
+    .sort((a, b) => a - b)
+    .join(",");
+  const [popupOpen, setPopupOpen] = useState(false);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const hideInlineBanner =
+    pathname === "/listings" || pathname.startsWith("/listing/");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!shouldShowSiteInterestNotice(listingInvites.length) || !interestKey) {
+      return;
+    }
+    const key = `${INTEREST_POPUP_KEY}:${interestKey}`;
+    if (window.sessionStorage.getItem(key)) return;
+    setPopupOpen(true);
+  }, [interestKey, listingInvites.length]);
+
+  function dismissPopup() {
+    try {
+      window.sessionStorage.setItem(`${INTEREST_POPUP_KEY}:${interestKey}`, "1");
+    } catch {
+      // private mode — still close the dialog
+    }
+    setPopupOpen(false);
+  }
+
+  if (!shouldShowSiteInterestNotice(listingInvites.length)) return null;
+
+  return (
+    <>
+      {hideInlineBanner ? null : (
+        <div className="mx-auto max-w-6xl px-4 pt-4 sm:px-6">
+          <OwnerInterestBanner showListing />
+        </div>
+      )}
+      {popupOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-fg/65 p-3 sm:items-center sm:p-6"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) dismissPopup();
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="interest-popup-title"
+            className="w-full max-w-md rounded-xl bg-surface p-5 shadow-[var(--shadow-card)] sm:p-6"
+          >
+            <p className="text-[12px] tracking-wide text-subtle uppercase">
+              Waiting on you
+            </p>
+            <h2
+              id="interest-popup-title"
+              className="mt-1 font-display text-2xl text-fg"
+            >
+              {interestedNeighborHeadline(listingInvites.length)}
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-muted">
+              Someone marked Interested. Accept or Deny here — you do not have
+              to open the listing first.
+            </p>
+            <div className="mt-4">
+              <OwnerInterestRows
+                invites={listingInvites}
+                pendingId={pendingId}
+                showListing
+                onAccept={(id) => void respond(id, true)}
+                onDeny={(id) => void respond(id, false)}
+              />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-4 w-full"
+              onClick={dismissPopup}
+            >
+              Keep this on the banner
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }

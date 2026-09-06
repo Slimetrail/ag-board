@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { INVITES_CHANGED } from "@/components/owner-interest-banner";
+import { INVITES_CHANGED } from "@/lib/interest-notify";
 import { listInvites } from "@/lib/profiles";
 import { cn } from "@/lib/utils";
 
