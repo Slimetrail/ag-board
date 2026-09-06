@@ -35,6 +35,44 @@ export function threadDealStatus(input: {
   return "open";
 }
 
+/** Active Connected relation — only `accepted`. `ended` is not connected. */
+export function isConnectedInviteStatus(status: string): boolean {
+  return status === "accepted";
+}
+
+export function isEndedInviteStatus(status: string): boolean {
+  return status === "ended";
+}
+
+/** Live private thread: no ended_at. Deal done stamps ended_at. */
+export function isActiveConnectionThread(
+  endedAt?: string | Date | null,
+): boolean {
+  return endedAt == null;
+}
+
+/**
+ * Inbox / listing chat: active connections, plus an ended Deal-done
+ * thread the current user has not rated yet (rating residual).
+ */
+export function shouldKeepThreadInInbox(input: {
+  endedAt?: string | Date | null;
+  dealDoneAt?: string | Date | null;
+  alreadyRated: boolean;
+}): boolean {
+  if (isActiveConnectionThread(input.endedAt)) return true;
+  return Boolean(input.dealDoneAt) && !input.alreadyRated;
+}
+
+/** Composer + "Connected" copy only while the thread is live. */
+export function shouldShowConnectedChat(connectionEnded: boolean): boolean {
+  return !connectionEnded;
+}
+
+export function canSendOnThread(connectionEnded: boolean): boolean {
+  return !connectionEnded;
+}
+
 /** Listing owner starts the handshake record. */
 export function canMarkDealPending(
   isListingOwner: boolean,

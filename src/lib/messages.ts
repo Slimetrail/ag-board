@@ -4,10 +4,13 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import {
   canMarkDealDone,
   canMarkDealPending,
+  canSendOnThread,
   canSubmitRating,
   hasCompleteCategoryScores,
+  isActiveConnectionThread,
   legacyStarsFromCategoryScores,
   pairUserIds,
+  shouldKeepThreadInInbox,
   threadDealStatus,
   type CategoryScores,
   type DealStatus,
@@ -31,6 +34,7 @@ export type ThreadState = {
   other: PublicProfile;
   dealStatus: DealStatus;
   dealDone: boolean;
+  connectionEnded: boolean;
   isListingOwner: boolean;
   myRating: CategoryScores | null;
   theyRated: boolean;
@@ -43,6 +47,7 @@ export type ThreadSummary = {
   other: PublicProfile;
   dealStatus: DealStatus;
   dealDone: boolean;
+  connectionEnded: boolean;
   lastBody: string | null;
   lastAt: string | null;
 };
@@ -57,10 +62,12 @@ type ThreadRow = {
   deal_pending_by: string | null;
   deal_done_at: string | null;
   deal_done_by: string | null;
+  ended_at: string | null;
+  ended_by: string | null;
 };
 
 const THREAD_COLUMNS =
-  "id, invite_id, listing_id, user_a_id, user_b_id, deal_pending_at, deal_pending_by, deal_done_at, deal_done_by";
+  "id, invite_id, listing_id, user_a_id, user_b_id, deal_pending_at, deal_pending_by, deal_done_at, deal_done_by, ended_at, ended_by";
 
 const emptyCategoryAverages = {
   honesty: null,
@@ -142,7 +149,7 @@ export async function ensureThreadForAcceptedInvite(
   const [userA, userB] = pairUserIds(invite.fromUserId, invite.toUserId);
   const existing = await sql.query<{ id: number }>(
     `select id from conversation_threads
-     where user_a_id = $1 and user_b_id = $2
+     where user_a_id = $1 and user_b_id = $2 and ended_at is null
      limit 1`,
     [userA, userB],
   );
@@ -151,13 +158,71 @@ export async function ensureThreadForAcceptedInvite(
   const inserted = await sql.query<{ id: number }>(
     `insert into conversation_threads (invite_id, listing_id, user_a_id, user_b_id)
      values ($1, $2, $3, $4)
-     on conflict (user_a_id, user_b_id) do update set
+     on conflict (user_a_id, user_b_id) where ended_at is null do update set
        invite_id = coalesce(conversation_threads.invite_id, excluded.invite_id),
        listing_id = coalesce(conversation_threads.listing_id, excluded.listing_id)
      returning id`,
     [invite.id, invite.listingId, userA, userB],
   );
   return inserted[0]!.id;
+}
+
+async function endedDealThreadForPair(
+  sql: Sql,
+  me: string,
+  them: string,
+  listingId?: number,
+): Promise<ThreadRow | null> {
+  const [userA, userB] = pairUserIds(me, them);
+  const rows = await sql.query<ThreadRow>(
+    listingId
+      ? `select ${THREAD_COLUMNS}
+         from conversation_threads
+         where user_a_id = $1 and user_b_id = $2
+           and ended_at is not null
+           and deal_done_at is not null
+           and (listing_id = $3 or listing_id is null)
+         order by ended_at desc
+         limit 1`
+      : `select ${THREAD_COLUMNS}
+         from conversation_threads
+         where user_a_id = $1 and user_b_id = $2
+           and ended_at is not null
+           and deal_done_at is not null
+         order by ended_at desc
+         limit 1`,
+    listingId ? [userA, userB, listingId] : [userA, userB],
+  );
+  return rows[0] ?? null;
+}
+
+async function endThreadConnection(
+  sql: Sql,
+  row: ThreadRow,
+  actorUserId: string,
+): Promise<ThreadRow> {
+  const updated = await sql.query<ThreadRow>(
+    `update conversation_threads
+     set ended_at = coalesce(ended_at, now()),
+         ended_by = coalesce(ended_by, $2)
+     where id = $1
+     returning ${THREAD_COLUMNS}`,
+    [row.id, actorUserId],
+  );
+  await sql.query(
+    `update connection_invites
+     set status = 'ended'
+     where status = 'accepted'
+       and (
+         id = $1
+         or (
+           (from_user_id = $2 and to_user_id = $3)
+           or (from_user_id = $3 and to_user_id = $2)
+         )
+       )`,
+    [row.invite_id, row.user_a_id, row.user_b_id],
+  );
+  return updated[0] ?? row;
 }
 
 async function requireThreadMember(
@@ -266,6 +331,7 @@ async function threadState(
     other,
     dealStatus,
     dealDone: dealStatus === "done",
+    connectionEnded: !isActiveConnectionThread(row.ended_at),
     isListingOwner: ownerId === me,
     myRating: ratings.myRating,
     theyRated: ratings.theyRated,
@@ -283,16 +349,18 @@ async function openThread(
     throw new Error("That's your own place.");
   }
   const invite = await acceptedInviteBetween(sql, me, otherUserId);
-  if (!invite) {
-    throw new Error("Connect first — Accept opens a private thread.");
+  if (invite) {
+    const threadId = await ensureThreadForAcceptedInvite(sql, {
+      id: invite.id,
+      fromUserId: invite.from_user_id,
+      toUserId: invite.to_user_id,
+      listingId: invite.listing_id ?? listingId ?? null,
+    });
+    return requireThreadMember(sql, threadId, me);
   }
-  const threadId = await ensureThreadForAcceptedInvite(sql, {
-    id: invite.id,
-    fromUserId: invite.from_user_id,
-    toUserId: invite.to_user_id,
-    listingId: invite.listing_id ?? listingId ?? null,
-  });
-  return requireThreadMember(sql, threadId, me);
+  const residual = await endedDealThreadForPair(sql, me, otherUserId, listingId);
+  if (residual) return residual;
+  throw new Error("Connect first — Accept opens a private thread.");
 }
 
 export const getOrOpenThread = createServerFn({ method: "POST" })
@@ -343,6 +411,12 @@ export const sendMessage = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const row = await requireThreadMember(sql, data.threadId, context.userId);
+    const connectionEnded = !isActiveConnectionThread(row.ended_at);
+    if (!canSendOnThread(connectionEnded)) {
+      throw new Error(
+        "This connection has ended. Mark Interested again to reconnect.",
+      );
+    }
     await sql.query(
       `insert into messages (thread_id, sender_user_id, body) values ($1, $2, $3)`,
       [data.threadId, context.userId, data.body],
@@ -393,10 +467,11 @@ export const markDealDone = createServerFn({ method: "POST" })
       dealDoneAt: row.deal_done_at,
     });
     if (status === "done") {
-      if (row.listing_id) {
-        await unpublishListingFromBoard(sql, row.listing_id);
+      const ended = await endThreadConnection(sql, row, context.userId);
+      if (ended.listing_id) {
+        await unpublishListingFromBoard(sql, ended.listing_id);
       }
-      return threadState(sql, row, context.userId);
+      return threadState(sql, ended, context.userId);
     }
     if (!canMarkDealDone(ownerId === context.userId, status)) {
       throw new Error(
@@ -413,7 +488,7 @@ export const markDealDone = createServerFn({ method: "POST" })
        returning ${THREAD_COLUMNS}`,
       [data.threadId, context.userId],
     );
-    const done = rows[0]!;
+    const done = await endThreadConnection(sql, rows[0]!, context.userId);
     if (done.listing_id) {
       await unpublishListingFromBoard(sql, done.listing_id);
     }
@@ -525,20 +600,42 @@ async function listThreadSummaries(
   );
   const otherIds = rows.map((row) => otherIdOnThread(row, userId));
   const profiles = await loadPublicProfiles(sql, otherIds);
-  return rows.map((row) => {
-    const otherId = otherIdOnThread(row, userId);
-    return {
-      threadId: row.id,
-      listingId: row.listing_id,
-      other: profiles.get(otherId) ?? placeholderProfile(otherId),
-      dealStatus: threadDealStatus({
-        dealPendingAt: row.deal_pending_at,
+  const rated = await sql.query<{ thread_id: number }>(
+    rows.length === 0
+      ? `select 0 as thread_id where false`
+      : `select thread_id from connection_ratings
+         where rater_user_id = $1
+           and thread_id in (${rows.map((_, index) => `$${index + 2}`).join(", ")})`,
+    rows.length === 0 ? [] : [userId, ...rows.map((row) => row.id)],
+  );
+  const ratedIds = new Set(rated.map((row) => row.thread_id));
+  return rows.flatMap((row) => {
+    const alreadyRated = ratedIds.has(row.id);
+    if (
+      !shouldKeepThreadInInbox({
+        endedAt: row.ended_at,
         dealDoneAt: row.deal_done_at,
-      }),
-      dealDone: Boolean(row.deal_done_at),
-      lastBody: row.last_body,
-      lastAt: asIso(row.last_at),
-    };
+        alreadyRated,
+      })
+    ) {
+      return [];
+    }
+    const otherId = otherIdOnThread(row, userId);
+    return [
+      {
+        threadId: row.id,
+        listingId: row.listing_id,
+        other: profiles.get(otherId) ?? placeholderProfile(otherId),
+        dealStatus: threadDealStatus({
+          dealPendingAt: row.deal_pending_at,
+          dealDoneAt: row.deal_done_at,
+        }),
+        dealDone: Boolean(row.deal_done_at),
+        connectionEnded: !isActiveConnectionThread(row.ended_at),
+        lastBody: row.last_body,
+        lastAt: asIso(row.last_at),
+      },
+    ];
   });
 }
 

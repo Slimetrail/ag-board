@@ -18,9 +18,11 @@ import {
   formatSubmittedRating,
   NeighborRating,
 } from "@/components/neighbor-rating";
+import { INVITES_CHANGED } from "@/lib/interest-notify";
 import {
   canMarkDealDone,
   canMarkDealPending,
+  shouldShowConnectedChat,
   type PartialCategoryScores,
 } from "@/lib/connect-helpers";
 
@@ -129,6 +131,9 @@ export function MessageThread({
     setError(null);
     try {
       setThread(await markDealDone({ data: { threadId: thread.threadId } }));
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event(INVITES_CHANGED));
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not mark the deal done.");
     } finally {
@@ -172,15 +177,18 @@ export function MessageThread({
     thread.dealStatus,
   );
   const showDone = canMarkDealDone(thread.isListingOwner, thread.dealStatus);
+  const activeChat = shouldShowConnectedChat(thread.connectionEnded);
 
   return (
     <div className="flex min-h-0 flex-col">
       <div className="shrink-0">
         <p className="text-[12px] tracking-wide text-subtle uppercase">
-          Private messages
+          {activeChat ? "Private messages" : "Deal done"}
         </p>
         <p className="mt-0.5 text-sm text-muted">
-          Connected with @{handle}. Talk here.
+          {activeChat
+            ? `Connected with @${handle}. Talk here.`
+            : `This connection has ended. Rate @${handle} if you have not yet. Interested + Accept opens a new thread.`}
         </p>
         <NeighborRating
           className="mt-1"
@@ -215,25 +223,27 @@ export function MessageThread({
           <div ref={endRef} />
         </div>
 
-        <form
-          className="grid gap-2 border-t border-border/70 p-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void send();
-          }}
-        >
-          <Textarea
-            value={body}
-            onChange={(event) => setBody(event.target.value)}
-            maxLength={1000}
-            rows={2}
-            placeholder={`Message @${handle}…`}
-            aria-label="Private message"
-          />
-          <Button type="submit" disabled={pending || !body.trim()}>
-            {pending ? "Sending…" : "Send"}
-          </Button>
-        </form>
+        {activeChat ? (
+          <form
+            className="grid gap-2 border-t border-border/70 p-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void send();
+            }}
+          >
+            <Textarea
+              value={body}
+              onChange={(event) => setBody(event.target.value)}
+              maxLength={1000}
+              rows={2}
+              placeholder={`Message @${handle}…`}
+              aria-label="Private message"
+            />
+            <Button type="submit" disabled={pending || !body.trim()}>
+              {pending ? "Sending…" : "Send"}
+            </Button>
+          </form>
+        ) : null}
       </div>
 
       <div className="mt-4 shrink-0 border-t border-border pt-4">

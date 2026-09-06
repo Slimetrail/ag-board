@@ -4,7 +4,11 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
-import { pairUserIds } from "./connect-helpers.ts";
+import {
+  isConnectedInviteStatus,
+  pairUserIds,
+  shouldKeepThreadInInbox,
+} from "./connect-helpers.ts";
 import {
   BOARD_VISIBLE_SQL,
   UNPUBLISH_LISTING_SQL,
@@ -346,6 +350,197 @@ describe("0016_rating_categories", () => {
         ),
       /check|constraint|violat/i,
     );
+
+    await db.close();
+  });
+});
+
+describe("0018_end_connection_on_deal_done", () => {
+  it("ends the invite and thread on Deal done, keeps ratings, requires a new Accept", async () => {
+    const db = new PGlite();
+    await db.waitReady;
+    await db.exec(sqlFile("0002_listings.sql"));
+    await db.exec(sqlFile("0004_listing_user.sql"));
+    await db.exec(sqlFile("0005_profiles.sql"));
+    await db.exec(sqlFile("0010_deciding.sql"));
+    await db.exec(sqlFile("0012_messages_ratings.sql"));
+    await db.exec(sqlFile("0013_listing_drafts.sql"));
+    await db.exec(sqlFile("0017_deal_pending.sql"));
+    await db.exec(sqlFile("0018_end_connection_on_deal_done.sql"));
+
+    await db.query(
+      `insert into listings (
+         slug, category, deal_type, title, summary, description, price_label,
+         quantity, location, region, farm_name, farm_note, image_path, user_id,
+         available, is_draft, published_at
+       ) values (
+         'eggs-ab12', 'produce', 'sell', 'Eggs', 'Dozen', 'Dozen', 'trade',
+         '1 dozen', 'Anderson', 'Anderson, SC', 'Crossroads', '', '/egg.jpg', 'wife',
+         true, false, now()
+       )`,
+    );
+    await db.query(
+      `insert into connection_invites (from_user_id, to_user_id, listing_id, status)
+       values ('husband', 'wife', 1, 'accepted')`,
+    );
+    const invite = await db.query<{ id: number }>(
+      `select id from connection_invites limit 1`,
+    );
+    const inviteId = invite.rows[0]!.id;
+    const [a, b] = pairUserIds("husband", "wife");
+    await db.query(
+      `insert into conversation_threads (
+         invite_id, listing_id, user_a_id, user_b_id,
+         deal_pending_at, deal_pending_by
+       ) values ($1, 1, $2, $3, now(), 'wife')`,
+      [inviteId, a, b],
+    );
+    await db.query(
+      `insert into messages (thread_id, sender_user_id, body)
+       values (1, 'husband', 'Saturday after chores')`,
+    );
+
+    await db.query(
+      `update conversation_threads
+       set deal_done_at = now(), deal_done_by = 'wife',
+           ended_at = now(), ended_by = 'wife'
+       where id = 1`,
+    );
+    await db.query(
+      `update connection_invites set status = 'ended' where id = $1`,
+      [inviteId],
+    );
+    await db.query(UNPUBLISH_LISTING_SQL, [1]);
+
+    const after = await db.query<{
+      status: string;
+      ended_at: string | null;
+      deal_done_at: string | null;
+    }>(
+      `select i.status, t.ended_at, t.deal_done_at
+       from connection_invites i
+       join conversation_threads t on t.invite_id = i.id
+       where i.id = $1`,
+      [inviteId],
+    );
+    assert.equal(isConnectedInviteStatus(after.rows[0]!.status), false);
+    assert.equal(after.rows[0]?.status, "ended");
+    assert.ok(after.rows[0]?.ended_at);
+    assert.ok(after.rows[0]?.deal_done_at);
+
+    const relation = await db.query<{ status: string }>(
+      `select status from connection_invites
+       where (from_user_id = $1 and to_user_id = $2)
+          or (from_user_id = $2 and to_user_id = $1)
+       order by created_at desc`,
+      ["husband", "wife"],
+    );
+    assert.equal(
+      relation.rows.find((row) => row.status === "accepted"),
+      undefined,
+    );
+
+    const kept = await db.query<{ body: string }>(
+      `select body from messages where thread_id = 1`,
+    );
+    assert.equal(kept.rows[0]?.body, "Saturday after chores");
+
+    await db.query(
+      `insert into connection_ratings (thread_id, rater_user_id, rated_user_id, stars)
+       values (1, 'wife', 'husband', 5)`,
+    );
+    assert.equal(
+      shouldKeepThreadInInbox({
+        endedAt: after.rows[0]!.ended_at,
+        dealDoneAt: after.rows[0]!.deal_done_at,
+        alreadyRated: true,
+      }),
+      false,
+    );
+    await db.query(
+      `insert into connection_ratings (thread_id, rater_user_id, rated_user_id, stars)
+       values (1, 'husband', 'wife', 4)`,
+    );
+
+    await db.query(
+      `update connection_invites
+       set status = 'pending'
+       where from_user_id = 'husband' and to_user_id = 'wife'`,
+    );
+    await db.query(
+      `update connection_invites
+       set status = 'accepted'
+       where from_user_id = 'husband' and to_user_id = 'wife'`,
+    );
+    await db.query(
+      `insert into conversation_threads (invite_id, listing_id, user_a_id, user_b_id)
+       values ($1, 1, $2, $3)`,
+      [inviteId, a, b],
+    );
+
+    const threads = await db.query<{ id: number; ended_at: string | null }>(
+      `select id, ended_at from conversation_threads
+       where user_a_id = $1 and user_b_id = $2
+       order by id`,
+      [a, b],
+    );
+    assert.equal(threads.rows.length, 2);
+    assert.ok(threads.rows[0]?.ended_at);
+    assert.equal(threads.rows[1]?.ended_at, null);
+
+    await assert.rejects(
+      () =>
+        db.query(
+          `insert into conversation_threads (invite_id, listing_id, user_a_id, user_b_id)
+           values ($1, 1, $2, $3)`,
+          [inviteId, a, b],
+        ),
+      /duplicate|unique/i,
+    );
+
+    const board = await db.query<{ n: number }>(
+      `select count(*)::int as n from listings where ${BOARD_VISIBLE_SQL}`,
+    );
+    assert.equal(board.rows[0]?.n, 0);
+
+    await db.close();
+  });
+
+  it("backfills ended_at and invite status for deals already marked done", async () => {
+    const db = new PGlite();
+    await db.waitReady;
+    await db.exec(sqlFile("0002_listings.sql"));
+    await db.exec(sqlFile("0005_profiles.sql"));
+    await db.exec(sqlFile("0012_messages_ratings.sql"));
+    await db.exec(sqlFile("0017_deal_pending.sql"));
+
+    await db.query(
+      `insert into connection_invites (from_user_id, to_user_id, status)
+       values ('ann', 'ben', 'accepted')`,
+    );
+    const invite = await db.query<{ id: number }>(
+      `select id from connection_invites limit 1`,
+    );
+    const [a, b] = pairUserIds("ann", "ben");
+    await db.query(
+      `insert into conversation_threads (
+         invite_id, user_a_id, user_b_id, deal_done_at, deal_done_by
+       ) values ($1, $2, $3, now(), 'ben')`,
+      [invite.rows[0]!.id, a, b],
+    );
+
+    await db.exec(sqlFile("0018_end_connection_on_deal_done.sql"));
+
+    const backfilled = await db.query<{
+      status: string;
+      ended_at: string | null;
+    }>(
+      `select i.status, t.ended_at
+       from connection_invites i
+       join conversation_threads t on t.invite_id = i.id`,
+    );
+    assert.equal(backfilled.rows[0]?.status, "ended");
+    assert.ok(backfilled.rows[0]?.ended_at);
 
     await db.close();
   });
