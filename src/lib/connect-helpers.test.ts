@@ -20,6 +20,7 @@ import {
   roundRatingAverage,
   shouldDisplayNeighborRating,
   shouldRevealPersonal,
+  shouldEmbedConnectPanelThread,
   shouldRenderOwnerListingThreads,
   shouldRenderVisitorThread,
   shouldShowInterested,
@@ -84,6 +85,8 @@ describe("ratings", () => {
     assert.equal(shouldRenderVisitorThread("self"), false);
     assert.equal(shouldRenderOwnerListingThreads("self"), true);
     assert.equal(shouldRenderOwnerListingThreads("connected"), false);
+    assert.equal(shouldEmbedConnectPanelThread(undefined), true);
+    assert.equal(shouldEmbedConnectPanelThread(12), false);
   });
 
   it("averages to one decimal", () => {
@@ -246,12 +249,38 @@ describe("connect flow actions", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const panel = readFileSync(join(here, "../components/connect-panel.tsx"), "utf8");
     assert.match(panel, /shouldRenderOwnerListingThreads/);
-    assert.match(panel, /OwnerListingThreads/);
     assert.match(panel, /shouldRenderVisitorThread/);
+    assert.match(panel, /shouldEmbedConnectPanelThread/);
+    assert.doesNotMatch(panel, /<OwnerListingThreads/);
     const messagesPage = readFileSync(join(here, "../routes/messages.tsx"), "utf8");
     const threadIdx = messagesPage.indexOf("<MessageThread");
     const listIdx = messagesPage.indexOf("threads.map");
     assert.ok(threadIdx > 0 && listIdx > threadIdx);
+  });
+
+  it("places listing private chat under the photo, not in the aside", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const listingPage = readFileSync(
+      join(here, "../routes/listing.$slug.tsx"),
+      "utf8",
+    );
+    const photoIdx = listingPage.indexOf("aspect-4/3");
+    const chatIdx = listingPage.indexOf("<ListingPhotoChat");
+    const copyIdx = listingPage.indexOf("The listing");
+    const asideIdx = listingPage.indexOf("<aside>");
+    const connectIdx = listingPage.indexOf("<ConnectPanel");
+    assert.ok(photoIdx > 0 && chatIdx > photoIdx);
+    assert.ok(chatIdx < copyIdx && chatIdx < asideIdx);
+    assert.ok(connectIdx > asideIdx);
+
+    const photoChat = readFileSync(
+      join(here, "../components/listing-photo-chat.tsx"),
+      "utf8",
+    );
+    assert.match(photoChat, /OwnerListingThreads/);
+    assert.match(photoChat, /MessageThread/);
+    assert.match(photoChat, /shouldRenderVisitorThread/);
+    assert.match(photoChat, /shouldRenderOwnerListingThreads/);
   });
 
   it("lets a listing viewer mark Interested without mixing in Accept/Deny", () => {

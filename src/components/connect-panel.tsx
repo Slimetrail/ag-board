@@ -4,15 +4,16 @@ import { FarmAvatar } from "@/components/farm-avatar";
 import { InviteRespondButtons } from "@/components/invite-respond-buttons";
 import { ListingInviteInbox } from "@/components/listing-invite-inbox";
 import { MessageThread } from "@/components/message-thread";
-import { OwnerListingThreads } from "@/components/owner-listing-threads";
 import { NeighborRating } from "@/components/neighbor-rating";
 import { Button } from "@/components/ui/button";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import {
+  shouldEmbedConnectPanelThread,
   shouldRenderOwnerListingThreads,
   shouldRenderVisitorThread,
   shouldShowInviteRespond,
 } from "@/lib/connect-helpers";
+import { INVITES_CHANGED } from "@/lib/interest-notify";
 import {
   getConnection,
   getPublicByUserId,
@@ -84,6 +85,9 @@ export function ConnectPanel({
     setPending(true);
     try {
       await respondInvite({ data: { id: pendingInviteId, accept } });
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event(INVITES_CHANGED));
+      }
       await load();
     } catch (err) {
       if (String(err instanceof Error ? err.message : err).includes("Agree")) {
@@ -133,12 +137,7 @@ export function ConnectPanel({
         <div className="mt-4">
           <p className="text-sm text-subtle">This is your card.</p>
           {listingId ? <ListingInviteInbox listingId={listingId} /> : null}
-          {listingId ? (
-            <OwnerListingThreads
-              listingId={listingId}
-              currentUserId={user.id}
-            />
-          ) : (
+          {listingId ? null : (
             <p className="mt-3 text-sm text-muted">
               Private threads live under{" "}
               <Link to="/messages" className="underline-offset-2 hover:underline">
@@ -149,11 +148,13 @@ export function ConnectPanel({
           )}
         </div>
       ) : shouldRenderVisitorThread(relation) && user ? (
-        <MessageThread
-          otherUserId={userId}
-          listingId={listingId}
-          currentUserId={user.id}
-        />
+        shouldEmbedConnectPanelThread(listingId) ? (
+          <MessageThread
+            otherUserId={userId}
+            listingId={listingId}
+            currentUserId={user.id}
+          />
+        ) : null
       ) : !user ? (
         <div className="mt-4">
           <p className="text-sm leading-relaxed text-muted">
