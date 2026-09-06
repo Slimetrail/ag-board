@@ -104,6 +104,11 @@ function AboutPage() {
             talk in a private message thread — that is the contact channel.
           </li>
           <li>
+            After a deal, neighbors rate each other 1 to 5 stars on honesty,
+            courtesy, and reliability. Those scores stay on the profile so the
+            next neighbor can see who they are meeting at the gate.
+          </li>
+          <li>
             The app is not a party to any trade. If you connect, you take
             the risk.
           </li>
