@@ -7,6 +7,7 @@ import {
   looksLikeContactPii,
   pairUserIds,
   roundRatingAverage,
+  shouldDisplayNeighborRating,
   shouldRevealPersonal,
   shouldShowInterested,
   shouldShowInviteRespond,
@@ -51,6 +52,47 @@ describe("ratings", () => {
     assert.deepEqual(summarizeRatings([5, 4, 4]), { average: 4.3, count: 3 });
     assert.equal(roundRatingAverage("4.25"), 4.3);
     assert.equal(roundRatingAverage(null), null);
+  });
+
+  it("shows a 4.0+ average after the first rating", () => {
+    assert.equal(shouldDisplayNeighborRating(5, 1), true);
+    assert.equal(shouldDisplayNeighborRating(4, 1), true);
+    assert.equal(shouldDisplayNeighborRating(4.3, 3), true);
+    const loneFive = summarizeRatings([5]);
+    assert.equal(shouldDisplayNeighborRating(loneFive.average, loneFive.count), true);
+  });
+
+  it("hides a sub-4 average until six ratings", () => {
+    assert.equal(shouldDisplayNeighborRating(3.9, 1), false);
+    assert.equal(shouldDisplayNeighborRating(1, 1), false);
+    assert.equal(shouldDisplayNeighborRating(3.9, 5), false);
+    const afterGrudge = summarizeRatings([5, 1]);
+    assert.equal(afterGrudge.average, 3);
+    assert.equal(afterGrudge.count, 2);
+    assert.equal(
+      shouldDisplayNeighborRating(afterGrudge.average, afterGrudge.count),
+      false,
+    );
+  });
+
+  it("always shows the score once six ratings are in", () => {
+    assert.equal(shouldDisplayNeighborRating(1, 6), true);
+    assert.equal(shouldDisplayNeighborRating(2.5, 6), true);
+    assert.equal(shouldDisplayNeighborRating(3.9, 10), true);
+    const established = summarizeRatings([5, 1, 1, 1, 1, 1]);
+    assert.equal(established.count, 6);
+    assert.ok((established.average ?? 0) < 4);
+    assert.equal(
+      shouldDisplayNeighborRating(established.average, established.count),
+      true,
+    );
+  });
+
+  it("hides empty or invalid averages", () => {
+    assert.equal(shouldDisplayNeighborRating(null, 0), false);
+    assert.equal(shouldDisplayNeighborRating(null, 3), false);
+    assert.equal(shouldDisplayNeighborRating(Number.NaN, 4), false);
+    assert.equal(shouldDisplayNeighborRating(5, 0), false);
   });
 });
 

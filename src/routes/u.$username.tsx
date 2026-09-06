@@ -82,6 +82,7 @@ function NeighborPage() {
             className="mt-2"
             average={pub.ratingAverage}
             count={pub.ratingCount}
+            forSelf={relation === "self"}
           />
         </div>
       </div>

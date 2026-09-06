@@ -1,19 +1,26 @@
 import { Star } from "lucide-react";
+import { shouldDisplayNeighborRating } from "@/lib/connect-helpers";
 import { cn } from "@/lib/utils";
 
 export function NeighborRating({
   average,
   count,
   className,
+  forSelf = false,
 }: {
   average: number | null;
   count: number;
   className?: string;
+  /** Owner viewing their own stats can still see a hidden public score. */
+  forSelf?: boolean;
 }) {
   if (count === 0) {
     return (
       <p className={cn("text-sm text-subtle", className)}>No ratings yet</p>
     );
+  }
+  if (!forSelf && !shouldDisplayNeighborRating(average, count)) {
+    return null;
   }
   return (
     <p className={cn("text-sm text-muted", className)}>

@@ -112,6 +112,7 @@ export function ConnectPanel({
               className="mt-1"
               average={pub.ratingAverage}
               count={pub.ratingCount}
+              forSelf={relation === "self"}
             />
           ) : null}
         </div>
