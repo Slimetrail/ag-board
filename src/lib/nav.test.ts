@@ -29,7 +29,14 @@ describe("hamburgerNav", () => {
     assert.match(shell, /hamburgerNav\(\)/);
     assert.match(shell, /YOUR_LISTINGS_PATH/);
     assert.match(shell, /lg:hidden/);
+    assert.match(shell, /AuthEntryLinks/);
+    assert.match(shell, /compact/);
+    assert.match(shell, /Sign in to post/);
     assert.doesNotMatch(shell, /You're Listing/);
+    const home = readFileSync(join(here, "../routes/index.tsx"), "utf8");
+    assert.match(home, /SignedOut/);
+    assert.match(home, /AuthEntryLinks/);
+    assert.match(home, /size="lg"/);
     const listings = readFileSync(join(here, "listings.ts"), "utf8");
     assert.match(listings, /export const listOwnListings/);
     assert.match(

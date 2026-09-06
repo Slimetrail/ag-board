@@ -2,7 +2,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Eye, EyeOff } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Wordmark } from "@/components/brand-mark";
-import { afterAuthPath, safeReturnTo } from "@/lib/auth/return-to";
+import { loginSearch, type LoginSearch } from "@/lib/auth/login-search";
+import { afterAuthPath } from "@/lib/auth/return-to";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,15 +20,11 @@ import {
 import { passwordChecks, passwordError } from "@/lib/password";
 import { cn } from "@/lib/utils";
 
-export type LoginSearch = {
-  next?: string;
-};
+export type { LoginSearch };
 
 export const Route = createFileRoute("/login")({
-  validateSearch: (search: Record<string, unknown>): LoginSearch => {
-    const next = safeReturnTo(search.next);
-    return next ? { next } : {};
-  },
+  validateSearch: (search: Record<string, unknown>): LoginSearch =>
+    loginSearch(search),
   component: Login,
 });
 
@@ -44,9 +41,9 @@ function keepSessionToken(token: string | null | undefined) {
 
 function Login() {
   const navigate = useNavigate();
-  const { next } = Route.useSearch();
+  const { next, mode: modeSearch } = Route.useSearch();
   const afterAuth = afterAuthPath(next);
-  const [mode, setMode] = useState<"in" | "up">("in");
+  const mode = modeSearch === "up" ? "up" : "in";
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
@@ -282,8 +279,15 @@ function Login() {
                 type="button"
                 className="mt-4 w-full text-center text-sm text-muted hover:text-fg"
                 onClick={() => {
-                  setMode(mode === "in" ? "up" : "in");
                   setError(null);
+                  void navigate({
+                    to: "/login",
+                    search: loginSearch({
+                      next,
+                      mode: mode === "in" ? "up" : "in",
+                    }),
+                    replace: true,
+                  });
                 }}
               >
                 {mode === "in"

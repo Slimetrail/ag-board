@@ -8,7 +8,9 @@ import {
   StockTutorialTile,
   UserTutorialTile,
 } from "@/components/tutorial-tiles";
+import { AuthEntryLinks } from "@/components/auth-entry-links";
 import { Button } from "@/components/ui/button";
+import { SignedOut } from "@/lib/auth/gates";
 import { useBoardStore } from "@/lib/board-store";
 import { CATEGORIES, CATEGORY_META } from "@/lib/catalog";
 import { isCountyInState } from "@/lib/geo";
@@ -75,21 +77,32 @@ function Home() {
             Free to post, free to browse. A South Carolina board, found by
             county — no dues, no cut, no account.
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Button asChild size="lg" className="bg-surface text-fg hover:bg-bg">
-              <Link to="/market">
-                Browse the state
-                <ArrowRight />
-              </Link>
-            </Button>
-            <Button
-              asChild
-              size="lg"
-              variant="outline"
-              className="border-primary-fg/30 bg-fg/20 text-primary-fg hover:bg-fg/35"
-            >
-              <Link to="/share">See what's free</Link>
-            </Button>
+          <div className="mt-8 flex flex-col gap-3">
+            <SignedOut>
+              <div className="flex flex-wrap gap-3">
+                <AuthEntryLinks
+                  size="lg"
+                  signupClassName="bg-surface text-fg hover:bg-bg"
+                  loginClassName="border-primary-fg/30 bg-fg/20 text-primary-fg hover:bg-fg/35"
+                />
+              </div>
+            </SignedOut>
+            <div className="flex flex-wrap gap-3">
+              <Button asChild size="lg" className="bg-surface text-fg hover:bg-bg">
+                <Link to="/market">
+                  Browse the state
+                  <ArrowRight />
+                </Link>
+              </Button>
+              <Button
+                asChild
+                size="lg"
+                variant="outline"
+                className="border-primary-fg/30 bg-fg/20 text-primary-fg hover:bg-fg/35"
+              >
+                <Link to="/share">See what's free</Link>
+              </Button>
+            </div>
           </div>
         </div>
       </section>
