@@ -5,6 +5,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
 import { pairUserIds } from "./connect-helpers.ts";
+import {
+  BOARD_VISIBLE_SQL,
+  UNPUBLISH_LISTING_SQL,
+} from "./listing-draft.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -174,6 +178,95 @@ describe("listing owner thread list and deal pending", () => {
        set deal_done_at = now(), deal_done_by = 'wife'
        where id = 1`,
     );
+    await db.query(
+      `insert into connection_ratings (thread_id, rater_user_id, rated_user_id, stars)
+       values (1, 'wife', 'husband', 5), (1, 'husband', 'wife', 4)`,
+    );
+    const ratings = await db.query<{ n: number }>(
+      `select count(*)::int as n from connection_ratings where thread_id = 1`,
+    );
+    assert.equal(ratings.rows[0]?.n, 2);
+
+    await db.close();
+  });
+
+  it("unpublishes the listing from the board after Deal done, ratings still unlock", async () => {
+    const db = new PGlite();
+    await db.waitReady;
+    await db.exec(sqlFile("0002_listings.sql"));
+    await db.exec(sqlFile("0004_listing_user.sql"));
+    await db.exec(sqlFile("0005_profiles.sql"));
+    await db.exec(sqlFile("0010_deciding.sql"));
+    await db.exec(sqlFile("0012_messages_ratings.sql"));
+    await db.exec(sqlFile("0013_listing_drafts.sql"));
+    await db.exec(sqlFile("0017_deal_pending.sql"));
+
+    await db.query(
+      `insert into listings (
+         slug, category, deal_type, title, summary, description, price_label,
+         quantity, location, region, farm_name, farm_note, image_path, user_id,
+         available, is_draft, published_at, deciding_at
+       ) values (
+         'eggs-ab12', 'produce', 'sell', 'Eggs', 'Dozen', 'Dozen', 'trade',
+         '1 dozen', 'Anderson', 'Anderson, SC', 'Crossroads', '', '/egg.jpg', 'wife',
+         true, false, now(), now()
+       )`,
+    );
+
+    const before = await db.query<{ n: number }>(
+      `select count(*)::int as n from listings where ${BOARD_VISIBLE_SQL}`,
+    );
+    assert.equal(before.rows[0]?.n, 1);
+
+    await db.query(
+      `insert into connection_invites (from_user_id, to_user_id, listing_id, status)
+       values ('husband', 'wife', 1, 'accepted')`,
+    );
+    const invite = await db.query<{ id: number }>(
+      `select id from connection_invites limit 1`,
+    );
+    const [a, b] = pairUserIds("husband", "wife");
+    await db.query(
+      `insert into conversation_threads (
+         invite_id, listing_id, user_a_id, user_b_id,
+         deal_pending_at, deal_pending_by
+       ) values ($1, 1, $2, $3, now(), 'wife')`,
+      [invite.rows[0]!.id, a, b],
+    );
+
+    await db.query(
+      `update conversation_threads
+       set deal_done_at = now(), deal_done_by = 'wife'
+       where id = 1`,
+    );
+    const thread = await db.query<{ listing_id: number }>(
+      `select listing_id from conversation_threads where id = 1`,
+    );
+    await db.query(UNPUBLISH_LISTING_SQL, [thread.rows[0]!.listing_id]);
+
+    const after = await db.query<{
+      available: boolean;
+      is_draft: boolean;
+      deciding_at: string | null;
+    }>(
+      `select available, is_draft, deciding_at from listings where id = 1`,
+    );
+    assert.equal(after.rows[0]?.available, false);
+    assert.equal(after.rows[0]?.is_draft, false);
+    assert.equal(after.rows[0]?.deciding_at, null);
+
+    const board = await db.query<{ n: number }>(
+      `select count(*)::int as n from listings where ${BOARD_VISIBLE_SQL}`,
+    );
+    assert.equal(board.rows[0]?.n, 0);
+
+    const ownPosted = await db.query<{ n: number }>(
+      `select count(*)::int as n from listings
+       where user_id = $1 and is_draft = false`,
+      ["wife"],
+    );
+    assert.equal(ownPosted.rows[0]?.n, 1);
+
     await db.query(
       `insert into connection_ratings (thread_id, rater_user_id, rated_user_id, stars)
        values (1, 'wife', 'husband', 5), (1, 'husband', 'wife', 4)`,

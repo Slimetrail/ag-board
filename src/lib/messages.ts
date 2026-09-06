@@ -13,6 +13,7 @@ import {
   type DealStatus,
 } from "@/lib/connect-helpers";
 import { getSql, type Sql } from "@/lib/db";
+import { unpublishListingFromBoard } from "@/lib/listing-draft";
 import { loadPublicProfiles, type PublicProfile } from "@/lib/profiles";
 
 export const THREAD_POLL_MS = 4000;
@@ -392,6 +393,9 @@ export const markDealDone = createServerFn({ method: "POST" })
       dealDoneAt: row.deal_done_at,
     });
     if (status === "done") {
+      if (row.listing_id) {
+        await unpublishListingFromBoard(sql, row.listing_id);
+      }
       return threadState(sql, row, context.userId);
     }
     if (!canMarkDealDone(ownerId === context.userId, status)) {
@@ -409,7 +413,11 @@ export const markDealDone = createServerFn({ method: "POST" })
        returning ${THREAD_COLUMNS}`,
       [data.threadId, context.userId],
     );
-    return threadState(sql, rows[0]!, context.userId);
+    const done = rows[0]!;
+    if (done.listing_id) {
+      await unpublishListingFromBoard(sql, done.listing_id);
+    }
+    return threadState(sql, done, context.userId);
   });
 
 export const submitRating = createServerFn({ method: "POST" })

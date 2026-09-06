@@ -16,7 +16,12 @@ import { resolveCategoryCover } from "@/lib/category-cover";
 import { SEED_LISTINGS, SEED_NOTES } from "@/lib/seed-data";
 import { looksLikeContactPii } from "@/lib/connect-helpers";
 import { isCountyInState, placeLabel } from "@/lib/geo";
-import { BOARD_VISIBLE_SQL, draftPlace, draftSaveInput } from "@/lib/listing-draft";
+import {
+  BOARD_VISIBLE_SQL,
+  draftPlace,
+  draftSaveInput,
+  unpublishListingFromBoard,
+} from "@/lib/listing-draft";
 import { isUserUploadPath, USER_IMAGE_PATH_MAX } from "@/lib/upload-path";
 
 export type Listing = {
@@ -828,10 +833,7 @@ export const setListingStatus = createServerFn({ method: "POST" })
       throw new Error("Publish this draft from the post form.");
     }
     if (data.action === "delete") {
-      await sql.query(
-        `update listings set available = false, deciding_at = null where id = $1`,
-        [data.listingId],
-      );
+      await unpublishListingFromBoard(sql, data.listingId);
       return { ok: true, gone: true as const };
     }
     if (data.action === "deciding") {
