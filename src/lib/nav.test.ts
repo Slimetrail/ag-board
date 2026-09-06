@@ -54,11 +54,11 @@ describe("hamburgerNav", () => {
     assert.match(shell, /Post a listing/);
     assert.match(shell, /OfficeNav/);
     assert.doesNotMatch(shell, /You're Listing/);
-    assert.doesNotMatch(shell, /Sign in to post/);
     const hamburgerBlock = shell.slice(shell.indexOf("{open ? ("));
     assert.doesNotMatch(hamburgerBlock, /to="\/messages"/);
     assert.doesNotMatch(hamburgerBlock, /to="\/profile"/);
     assert.doesNotMatch(hamburgerBlock, /InviteBadge/);
+    assert.doesNotMatch(hamburgerBlock, />Sign in to post</);
     const home = readFileSync(join(here, "../routes/index.tsx"), "utf8");
     assert.match(home, /SignedOut/);
     assert.match(home, /AuthEntryLinks/);
