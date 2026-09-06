@@ -9,6 +9,7 @@ import { NoteForm } from "@/components/note-form";
 import { PosterStatus } from "@/components/poster-status";
 import { PriceEditor } from "@/components/price-editor";
 import { InterestedButton } from "@/components/interested-button";
+import { OwnerInterestBanner } from "@/components/owner-interest-banner";
 import { SaveButton } from "@/components/save-button";
 import { Badge } from "@/components/ui/badge";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -44,6 +45,9 @@ function ListingPage() {
 
   return (
     <article className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
+      {canEdit ? (
+        <OwnerInterestBanner listingId={listing.id} className="mb-6" />
+      ) : null}
       <Link
         to="/market"
         search={{ cat: listing.category }}

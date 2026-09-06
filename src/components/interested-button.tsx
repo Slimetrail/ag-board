@@ -85,7 +85,8 @@ export function InterestedButton({
       setRelation(result.relation);
       if (result.relation === "pending-out") {
         toast("Interested request sent", {
-          description: "They can Accept or Deny. Contact stays private until Accept.",
+          description:
+            "They get a notice to Accept or Deny. Contact stays private until Accept.",
         });
       }
     } catch (err) {
