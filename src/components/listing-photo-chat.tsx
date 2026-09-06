@@ -1,14 +1,26 @@
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { CancelRequestButton } from "@/components/cancel-request-button";
 import { MessageThread } from "@/components/message-thread";
 import { OwnerListingThreads } from "@/components/owner-listing-threads";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import {
   shouldRenderOwnerListingThreads,
   shouldRenderVisitorThread,
+  shouldShowCancelRequest,
 } from "@/lib/connect-helpers";
 import { INVITES_CHANGED } from "@/lib/interest-notify";
 import { THREAD_POLL_MS } from "@/lib/messages";
-import { getConnection, type ConnectionRelation } from "@/lib/profiles";
+import {
+  cancelInvite,
+  getConnection,
+  type ConnectionRelation,
+} from "@/lib/profiles";
+
+function notifyInvitesChanged() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(INVITES_CHANGED));
+}
 
 /** Private thread for a listing — sits directly under the photo tile. */
 export function ListingPhotoChat({
@@ -21,6 +33,7 @@ export function ListingPhotoChat({
   const { user, isPending: authPending } = useCurrentUserState();
   const [relation, setRelation] = useState<ConnectionRelation | null>(null);
   const [keptOwnerId, setKeptOwnerId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (authPending) return;
@@ -63,6 +76,22 @@ export function ListingPhotoChat({
     }
   }, [relation, ownerUserId]);
 
+  async function withdraw() {
+    setBusy(true);
+    try {
+      await cancelInvite({ data: { toUserId: ownerUserId } });
+      setRelation("none");
+      notifyInvitesChanged();
+      toast("Request canceled", {
+        description: "The owner will no longer see this Interested notice.",
+      });
+    } catch {
+      toast("Could not cancel that request.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!user || !relation) return null;
 
   if (shouldRenderOwnerListingThreads(relation)) {
@@ -81,6 +110,24 @@ export function ListingPhotoChat({
           otherUserId={ownerUserId}
           listingId={listingId}
           currentUserId={user.id}
+        />
+      </div>
+    );
+  }
+
+  if (shouldShowCancelRequest(relation)) {
+    return (
+      <div className="mt-5 rounded-xl bg-surface p-5 shadow-[var(--shadow-card)] sm:p-6">
+        <p className="text-[12px] tracking-wide text-subtle uppercase">
+          Private messages
+        </p>
+        <p className="mt-0.5 text-sm text-muted">
+          Interested — waiting on Accept. Chat opens after they Accept.
+        </p>
+        <CancelRequestButton
+          className="mt-4 w-full"
+          busy={busy}
+          onCancel={() => void withdraw()}
         />
       </div>
     );

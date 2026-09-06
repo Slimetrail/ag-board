@@ -340,6 +340,12 @@ describe("connect flow actions", () => {
     assert.match(photoChat, /shouldRenderVisitorThread/);
     assert.match(photoChat, /shouldRenderOwnerListingThreads/);
     assert.match(photoChat, /keptOwnerId/);
+    assert.match(photoChat, /shouldShowCancelRequest/);
+    assert.match(photoChat, /CancelRequestButton/);
+    assert.match(photoChat, /cancelInvite/);
+    const threadIdx = photoChat.indexOf("<MessageThread");
+    const cancelIdx = photoChat.indexOf("<CancelRequestButton");
+    assert.ok(threadIdx > 0 && cancelIdx > threadIdx);
   });
 
   it("hides Connected chat copy after Deal done ends the thread", () => {
@@ -392,6 +398,15 @@ describe("connect flow actions", () => {
     assert.match(invitesPage, /CancelRequestButton/);
     assert.match(invitesPage, /cancelInvite/);
     assert.match(invitesPage, /ListingThumb/);
+
+    const photoChat = readFileSync(
+      join(here, "../components/listing-photo-chat.tsx"),
+      "utf8",
+    );
+    assert.match(photoChat, /CancelRequestButton/);
+    assert.match(photoChat, /cancelInvite/);
+    assert.match(photoChat, /shouldShowCancelRequest/);
+    assert.doesNotMatch(photoChat, /Withdraw Interest/);
 
     const profiles = readFileSync(join(here, "profiles.ts"), "utf8");
     assert.match(profiles, /export const cancelInvite/);
