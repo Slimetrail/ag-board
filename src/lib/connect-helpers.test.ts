@@ -3,14 +3,21 @@ import assert from "node:assert/strict";
 import {
   bookmarkToast,
   canSubmitRating,
+  hasCompleteCategoryScores,
   interestedButtonLabel,
+  legacyStarsFromCategoryScores,
+  legacyStarsToCategoryScores,
   looksLikeContactPii,
   pairUserIds,
+  RATING_CATEGORY_INFO,
+  RATING_CATEGORY_LABELS,
+  ratingSetOverall,
   roundRatingAverage,
   shouldDisplayNeighborRating,
   shouldRevealPersonal,
   shouldShowInterested,
   shouldShowInviteRespond,
+  summarizeRatingSets,
   summarizeRatings,
 } from "./connect-helpers.ts";
 
@@ -93,6 +100,105 @@ describe("ratings", () => {
     assert.equal(shouldDisplayNeighborRating(null, 3), false);
     assert.equal(shouldDisplayNeighborRating(Number.NaN, 4), false);
     assert.equal(shouldDisplayNeighborRating(5, 0), false);
+  });
+
+  it("keeps category labels and info-button copy word for word", () => {
+    assert.equal(RATING_CATEGORY_LABELS.honesty, "Honesty");
+    assert.equal(RATING_CATEGORY_LABELS.courtesy, "Courtesy");
+    assert.equal(RATING_CATEGORY_LABELS.reliability, "Reliability");
+    assert.equal(
+      RATING_CATEGORY_INFO.honesty,
+      "the listing matched what showed up. Weight, condition, price, no bait-and-switch. That\u2019s \u201cjust weights and measures\u201d and \u201clet your yes be yes.\u201d",
+    );
+    assert.equal(
+      RATING_CATEGORY_INFO.courtesy,
+      "polite, respectful, no yelling at the gate. That\u2019s the \u201clove your neighbor\u201d part people feel immediately.",
+    );
+    assert.equal(
+      RATING_CATEGORY_INFO.reliability,
+      "they came when they said they would, paid or delivered as agreed, and didn\u2019t leave you hanging. That\u2019s faithfulness in a small thing.",
+    );
+    assert.match(RATING_CATEGORY_INFO.honesty, /\u2019|\u201c|\u201d/);
+    assert.match(RATING_CATEGORY_INFO.courtesy, /\u2019|\u201c|\u201d/);
+    assert.match(RATING_CATEGORY_INFO.reliability, /\u2019/);
+  });
+
+  it("requires all three category scores before a rating-set is complete", () => {
+    assert.equal(
+      hasCompleteCategoryScores({ honesty: 5, courtesy: 4, reliability: 3 }),
+      true,
+    );
+    assert.equal(
+      hasCompleteCategoryScores({ honesty: 5, courtesy: null, reliability: 3 }),
+      false,
+    );
+    assert.equal(
+      hasCompleteCategoryScores({ honesty: 0, courtesy: 4, reliability: 3 }),
+      false,
+    );
+    assert.equal(
+      hasCompleteCategoryScores({ honesty: 6, courtesy: 4, reliability: 3 }),
+      false,
+    );
+  });
+
+  it("treats a rating-set overall as the mean of its three category scores", () => {
+    assert.equal(ratingSetOverall({ honesty: 5, courtesy: 4, reliability: 3 }), 4);
+    assert.equal(
+      ratingSetOverall({ honesty: 5, courtesy: 5, reliability: 4 }),
+      14 / 3,
+    );
+  });
+
+  it("copies a legacy single star into all three categories", () => {
+    assert.deepEqual(legacyStarsToCategoryScores(4), {
+      honesty: 4,
+      courtesy: 4,
+      reliability: 4,
+    });
+    assert.equal(
+      legacyStarsFromCategoryScores({ honesty: 5, courtesy: 4, reliability: 4 }),
+      4,
+    );
+  });
+
+  it("averages rating-sets as mean of set overalls (same as mean of category avgs)", () => {
+    const sets = [
+      { honesty: 5, courtesy: 4, reliability: 3 },
+      { honesty: 5, courtesy: 5, reliability: 5 },
+    ];
+    const summary = summarizeRatingSets(sets);
+    assert.equal(summary.count, 2);
+    assert.equal(summary.overallAverage, 4.5);
+    assert.equal(summary.honestyAverage, 5);
+    assert.equal(summary.courtesyAverage, 4.5);
+    assert.equal(summary.reliabilityAverage, 4);
+    const categoryMean =
+      ((summary.honestyAverage ?? 0) +
+        (summary.courtesyAverage ?? 0) +
+        (summary.reliabilityAverage ?? 0)) /
+      3;
+    assert.equal(Math.round(categoryMean * 10) / 10, summary.overallAverage);
+
+    const fromLegacy = summarizeRatingSets([legacyStarsToCategoryScores(5)]);
+    assert.equal(fromLegacy.overallAverage, 5);
+    assert.equal(fromLegacy.honestyAverage, 5);
+    assert.equal(fromLegacy.count, 1);
+    assert.equal(shouldDisplayNeighborRating(fromLegacy.overallAverage, fromLegacy.count), true);
+
+    const hidden = summarizeRatingSets([
+      { honesty: 3, courtesy: 3, reliability: 2 },
+    ]);
+    assert.equal(hidden.overallAverage, 2.7);
+    assert.equal(shouldDisplayNeighborRating(hidden.overallAverage, hidden.count), false);
+
+    assert.deepEqual(summarizeRatingSets([]), {
+      overallAverage: null,
+      honestyAverage: null,
+      courtesyAverage: null,
+      reliabilityAverage: null,
+      count: 0,
+    });
   });
 });
 

@@ -83,6 +83,7 @@ function NeighborPage() {
             average={pub.ratingAverage}
             count={pub.ratingCount}
             forSelf={relation === "self"}
+            categoryAverages={pub.categoryAverages}
           />
         </div>
       </div>
