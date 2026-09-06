@@ -5,6 +5,7 @@ import { ListingPrice } from "@/components/listing-price";
 import { Badge } from "@/components/ui/badge";
 import { CATEGORY_META, listingDealBadge } from "@/lib/catalog";
 import { formatRegion } from "@/lib/geo";
+import { pendingInterestLabel } from "@/lib/interest-notify";
 import type { Listing } from "@/lib/listings";
 import { cn, timeAgo } from "@/lib/utils";
 
@@ -12,10 +13,12 @@ export function ListingCard({
   listing,
   className,
   variant = "tile",
+  pendingInterest = 0,
 }: {
   listing: Listing;
   className?: string;
   variant?: "tile" | "list";
+  pendingInterest?: number;
 }) {
   const blurb = listing.description || listing.summary;
   const deciding = Boolean(listing.decidingAt);
@@ -49,6 +52,11 @@ export function ListingCard({
           {deciding ? (
             <p className="mt-1 text-sm font-bold tracking-wide text-alert uppercase">
               Deciding
+            </p>
+          ) : null}
+          {pendingInterest > 0 ? (
+            <p className="mt-1 text-sm font-medium text-primary">
+              {pendingInterestLabel(pendingInterest)}
             </p>
           ) : null}
           <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-muted">
@@ -90,6 +98,11 @@ export function ListingCard({
             Deciding
           </p>
         ) : null}
+        {pendingInterest > 0 ? (
+          <p className="absolute top-3 right-3 rounded-sm bg-primary px-2 py-1 text-xs font-bold tracking-wide text-primary-fg uppercase">
+            {pendingInterestLabel(pendingInterest)}
+          </p>
+        ) : null}
         <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-3">
           <Badge variant="outline">{listingDealBadge(listing)}</Badge>
           <span className="rounded-full bg-fg/70 px-2 py-0.5 text-[11px] font-medium text-primary-fg backdrop-blur-sm">
@@ -101,6 +114,11 @@ export function ListingCard({
         <h3 className="font-display text-xl leading-snug text-fg">
           {listing.title}
         </h3>
+        {pendingInterest > 0 ? (
+          <p className="text-sm font-medium text-primary">
+            {pendingInterestLabel(pendingInterest)}
+          </p>
+        ) : null}
         <p className="line-clamp-2 text-sm leading-relaxed text-muted">
           {blurb}
         </p>

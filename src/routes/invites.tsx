@@ -144,12 +144,21 @@ function InviteCard({
         />
         <div className="min-w-0 flex-1">
           <p className="font-medium">@{invite.other.username}</p>
+          {invite.listing ? (
+            <Link
+              to="/listing/$slug"
+              params={{ slug: invite.listing.slug }}
+              className="block truncate text-sm text-muted hover:text-fg"
+            >
+              {invite.listing.title}
+            </Link>
+          ) : null}
           <Link
             to="/u/$username"
             params={{ username: invite.other.username }}
             className="text-sm text-muted hover:text-fg"
           >
-            @{invite.other.username}
+            Public profile
           </Link>
         </div>
       </div>

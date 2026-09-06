@@ -39,11 +39,18 @@ export type ConnectionRelation =
   | "pending-in"
   | "none";
 
+export type InviteListing = {
+  id: number;
+  title: string;
+  slug: string;
+};
+
 export type InviteRow = {
   id: number;
   fromUserId: string;
   toUserId: string;
   listingId: number | null;
+  listing: InviteListing | null;
   status: string;
   createdAt: string;
   other: PublicProfile;
@@ -498,6 +505,20 @@ export const sendInvite = createServerFn({ method: "POST" })
          listing_id = excluded.listing_id`,
       [context.userId, data.toUserId, data.listingId ?? null],
     );
+    if (data.listingId) {
+      try {
+        const { notifyListingOwnerOfInterest } = await import(
+          "@/lib/interest-notify"
+        );
+        await notifyListingOwnerOfInterest(sql, {
+          ownerUserId: data.toUserId,
+          requesterUserId: context.userId,
+          listingId: data.listingId,
+        });
+      } catch (err) {
+        console.error("Interest email failed", err);
+      }
+    }
     return { relation: "pending-out" as const };
   });
 
@@ -510,14 +531,18 @@ export const listInvites = createServerFn({ method: "POST" })
       from_user_id: string;
       to_user_id: string;
       listing_id: number | null;
+      listing_title: string | null;
+      listing_slug: string | null;
       status: string;
       created_at: string;
     }>(
-      `select id, from_user_id, to_user_id, listing_id, status, created_at
-       from connection_invites
-       where (from_user_id = $1 or to_user_id = $1)
-         and status in ('pending', 'accepted')
-       order by created_at desc`,
+      `select i.id, i.from_user_id, i.to_user_id, i.listing_id, i.status, i.created_at,
+              l.title as listing_title, l.slug as listing_slug
+       from connection_invites i
+       left join listings l on l.id = i.listing_id
+       where (i.from_user_id = $1 or i.to_user_id = $1)
+         and i.status in ('pending', 'accepted')
+       order by i.created_at desc`,
       [context.userId],
     );
     const others = [
@@ -555,6 +580,14 @@ export const listInvites = createServerFn({ method: "POST" })
         fromUserId: row.from_user_id,
         toUserId: row.to_user_id,
         listingId: row.listing_id,
+        listing:
+          row.listing_id && row.listing_title && row.listing_slug
+            ? {
+                id: row.listing_id,
+                title: row.listing_title,
+                slug: row.listing_slug,
+              }
+            : null,
         status: row.status,
         createdAt: row.created_at,
         other,

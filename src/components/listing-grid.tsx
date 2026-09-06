@@ -49,9 +49,11 @@ export function ViewToggle({ className }: { className?: string }) {
 export function ListingGrid({
   listings,
   className,
+  interestCounts,
 }: {
   listings: Listing[];
   className?: string;
+  interestCounts?: Record<number, number>;
 }) {
   const view = useBoardStore((s) => s.boardView);
   const [mounted, setMounted] = useState(false);
@@ -67,7 +69,12 @@ export function ListingGrid({
       )}
     >
       {listings.map((listing) => (
-        <ListingCard key={listing.id} listing={listing} variant={resolved} />
+        <ListingCard
+          key={listing.id}
+          listing={listing}
+          variant={resolved}
+          pendingInterest={interestCounts?.[listing.id] ?? 0}
+        />
       ))}
     </div>
   );

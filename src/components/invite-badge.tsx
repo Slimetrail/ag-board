@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { INVITES_CHANGED } from "@/components/owner-interest-banner";
 import { listInvites } from "@/lib/profiles";
 import { cn } from "@/lib/utils";
 
@@ -13,9 +14,14 @@ export function InviteBadge({
   const [count, setCount] = useState(0);
 
   useEffect(() => {
-    void listInvites()
-      .then((data) => setCount(data.pendingIn))
-      .catch(() => setCount(0));
+    function load() {
+      void listInvites()
+        .then((data) => setCount(data.pendingIn))
+        .catch(() => setCount(0));
+    }
+    load();
+    window.addEventListener(INVITES_CHANGED, load);
+    return () => window.removeEventListener(INVITES_CHANGED, load);
   }, []);
 
   return (

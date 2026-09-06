@@ -3,15 +3,21 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { DraftRow } from "@/components/draft-row";
 import { ListingGrid, ViewToggle } from "@/components/listing-grid";
+import {
+  INVITES_CHANGED,
+  OwnerInterestBanner,
+} from "@/components/owner-interest-banner";
 import { RequireUse } from "@/components/require-use";
 import { Button } from "@/components/ui/button";
 import { useBoardStore } from "@/lib/board-store";
+import { countPendingByListing } from "@/lib/interest-notify";
 import {
   deleteOwnDraft,
   listOwnDrafts,
   listOwnListings,
   type Listing,
 } from "@/lib/listings";
+import { listInvites } from "@/lib/profiles";
 
 export const Route = createFileRoute("/listings")({
   component: YourListingsPage,
@@ -29,21 +35,39 @@ function YourListings() {
   const [posted, setPosted] = useState<Listing[] | null>(null);
   const [drafts, setDrafts] = useState<Listing[] | null>(null);
   const [draftPending, setDraftPending] = useState<number | null>(null);
+  const [interestCounts, setInterestCounts] = useState<Record<number, number>>(
+    {},
+  );
 
   useEffect(() => {
     let live = true;
     async function load() {
-      const [postedRows, draftRows] = await Promise.all([
+      const [postedRows, draftRows, invites] = await Promise.all([
         listOwnListings().catch(() => [] as Listing[]),
         listOwnDrafts().catch(() => [] as Listing[]),
+        listInvites().catch(() => null),
       ]);
       if (!live) return;
       setPosted(postedRows);
       setDrafts(draftRows);
+      setInterestCounts(
+        invites ? countPendingByListing(invites.incoming) : {},
+      );
     }
     void load();
+    const onChange = () => {
+      void listInvites()
+        .then((data) => {
+          if (live) setInterestCounts(countPendingByListing(data.incoming));
+        })
+        .catch(() => {
+          if (live) setInterestCounts({});
+        });
+    };
+    window.addEventListener(INVITES_CHANGED, onChange);
     return () => {
       live = false;
+      window.removeEventListener(INVITES_CHANGED, onChange);
     };
   }, []);
 
@@ -57,6 +81,7 @@ function YourListings() {
         Posts on the board from this account, plus drafts that still sit off
         the board.
       </p>
+      <OwnerInterestBanner showListing className="mt-8" />
 
       {posted === null ? (
         <p className="mt-10 text-sm text-muted">Pulling your posts…</p>
@@ -73,7 +98,11 @@ function YourListings() {
       ) : (
         <div className="mt-10">
           <ViewToggle />
-          <ListingGrid listings={posted} className="mt-6" />
+          <ListingGrid
+            listings={posted}
+            interestCounts={interestCounts}
+            className="mt-6"
+          />
         </div>
       )}
 
