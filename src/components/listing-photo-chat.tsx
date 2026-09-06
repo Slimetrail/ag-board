@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CancelRequestButton } from "@/components/cancel-request-button";
 import { MessageThread } from "@/components/message-thread";
@@ -34,6 +34,13 @@ export function ListingPhotoChat({
   const [relation, setRelation] = useState<ConnectionRelation | null>(null);
   const [keptOwnerId, setKeptOwnerId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const leaveKeptVisitorThread = useCallback(() => {
+    setKeptOwnerId(null);
+    setRelation((current) =>
+      current && current !== "self" ? "none" : current,
+    );
+  }, []);
 
   useEffect(() => {
     if (authPending) return;
@@ -110,6 +117,7 @@ export function ListingPhotoChat({
           otherUserId={ownerUserId}
           listingId={listingId}
           currentUserId={user.id}
+          onLeftConnection={leaveKeptVisitorThread}
         />
       </div>
     );

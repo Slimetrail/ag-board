@@ -13,8 +13,11 @@ import {
   isConnectedInviteStatus,
   isEndedInviteStatus,
   hasCompleteCategoryScores,
+  canDisconnectConnection,
   CANCEL_REQUEST_LABEL,
   cancelRequestLabel,
+  DISCONNECT_LABEL,
+  disconnectLabel,
   interestedButtonLabel,
   legacyStarsFromCategoryScores,
   legacyStarsToCategoryScores,
@@ -357,6 +360,72 @@ describe("connect flow actions", () => {
     assert.match(messages, /endThreadConnection/);
     assert.match(messages, /status = 'ended'/);
     assert.match(messages, /canSendOnThread/);
+  });
+
+  it("lets either party Disconnect an active thread before Deal done", () => {
+    assert.equal(
+      canDisconnectConnection({ connectionEnded: false, dealDone: false }),
+      true,
+    );
+    assert.equal(
+      canDisconnectConnection({ connectionEnded: true, dealDone: false }),
+      false,
+    );
+    assert.equal(
+      canDisconnectConnection({ connectionEnded: false, dealDone: true }),
+      false,
+    );
+    assert.equal(
+      canDisconnectConnection({ connectionEnded: true, dealDone: true }),
+      false,
+    );
+    assert.equal(DISCONNECT_LABEL, "Disconnect");
+    assert.equal(disconnectLabel(false), "Disconnect");
+    assert.equal(disconnectLabel(true), "Disconnecting…");
+    assert.equal(canSubmitRating(false, false), false);
+  });
+
+  it("wires Disconnect under listing photo messages and keeps Cancel request", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const thread = readFileSync(
+      join(here, "../components/message-thread.tsx"),
+      "utf8",
+    );
+    assert.match(thread, /DisconnectButton/);
+    assert.match(thread, /disconnectConnection/);
+    assert.match(thread, /canDisconnectConnection/);
+    assert.match(thread, /onLeftConnection/);
+    const disconnectIdx = thread.indexOf("<DisconnectButton");
+    const dealDoneButtonIdx = thread.indexOf(
+      '{pending ? "Saving…" : "Deal done"}',
+    );
+    assert.ok(disconnectIdx > 0 && dealDoneButtonIdx > disconnectIdx);
+
+    const photoChat = readFileSync(
+      join(here, "../components/listing-photo-chat.tsx"),
+      "utf8",
+    );
+    assert.match(photoChat, /onLeftConnection/);
+    assert.match(photoChat, /CancelRequestButton/);
+    assert.match(photoChat, /shouldShowCancelRequest/);
+
+    const button = readFileSync(
+      join(here, "../components/disconnect-button.tsx"),
+      "utf8",
+    );
+    assert.match(button, /disconnectLabel/);
+    assert.match(button, /Disconnect/);
+
+    const messages = readFileSync(join(here, "messages.ts"), "utf8");
+    assert.match(messages, /export const disconnectConnection/);
+    assert.match(messages, /canDisconnectConnection/);
+    const disconnectFn = messages.slice(
+      messages.indexOf("export const disconnectConnection"),
+      messages.indexOf("export const markDealDone"),
+    );
+    assert.match(disconnectFn, /endThreadConnection/);
+    assert.doesNotMatch(disconnectFn, /unpublishListingFromBoard/);
+    assert.doesNotMatch(disconnectFn, /set deal_done_at/);
   });
 
   it("lets a listing viewer mark Interested without mixing in Accept/Deny", () => {

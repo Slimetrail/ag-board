@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { authMiddleware } from "@/lib/auth/middleware";
 import {
+  canDisconnectConnection,
   canMarkDealDone,
   canMarkDealPending,
   canSendOnThread,
@@ -453,6 +454,26 @@ export const markDealPending = createServerFn({ method: "POST" })
       [data.threadId, context.userId],
     );
     return threadState(sql, rows[0]!, context.userId);
+  });
+
+/** Leave an active connection without Deal done, unpublish, or ratings. */
+export const disconnectConnection = createServerFn({ method: "POST" })
+  .validator(z.object({ threadId: z.number().int().positive() }))
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const row = await requireThreadMember(sql, data.threadId, context.userId);
+    const dealDone = Boolean(row.deal_done_at);
+    const connectionEnded = !isActiveConnectionThread(row.ended_at);
+    if (!canDisconnectConnection({ connectionEnded, dealDone })) {
+      throw new Error(
+        dealDone
+          ? "This deal is already marked done."
+          : "This connection has already ended.",
+      );
+    }
+    const ended = await endThreadConnection(sql, row, context.userId);
+    return threadState(sql, ended, context.userId);
   });
 
 export const markDealDone = createServerFn({ method: "POST" })

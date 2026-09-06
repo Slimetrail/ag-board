@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  disconnectConnection,
   getOrOpenThread,
   getThreadState,
   markDealDone,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/messages";
 import { timeAgo } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { DisconnectButton } from "@/components/disconnect-button";
 import { Textarea } from "@/components/ui/textarea";
 import {
   canSubmitCategoryRating,
@@ -20,6 +22,7 @@ import {
 } from "@/components/neighbor-rating";
 import { INVITES_CHANGED } from "@/lib/interest-notify";
 import {
+  canDisconnectConnection,
   canMarkDealDone,
   canMarkDealPending,
   shouldShowConnectedChat,
@@ -30,10 +33,13 @@ export function MessageThread({
   otherUserId,
   listingId,
   currentUserId,
+  onLeftConnection,
 }: {
   otherUserId: string;
   listingId?: number;
   currentUserId: string;
+  /** Listing photo chat: hide the kept visitor thread after a non-deal disconnect. */
+  onLeftConnection?: () => void;
 }) {
   const [thread, setThread] = useState<ThreadState | null>(null);
   const [body, setBody] = useState("");
@@ -93,6 +99,12 @@ export function MessageThread({
     endRef.current?.scrollIntoView({ block: "nearest" });
   }, [thread?.messages.length]);
 
+  useEffect(() => {
+    if (thread?.connectionEnded && !thread.dealDone) {
+      onLeftConnection?.();
+    }
+  }, [thread?.connectionEnded, thread?.dealDone, onLeftConnection]);
+
   async function send() {
     if (!thread || !body.trim()) return;
     setPending(true);
@@ -141,6 +153,27 @@ export function MessageThread({
     }
   }
 
+  async function leaveConnection() {
+    if (!thread) return;
+    setPending(true);
+    setError(null);
+    try {
+      setThread(
+        await disconnectConnection({ data: { threadId: thread.threadId } }),
+      );
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event(INVITES_CHANGED));
+      }
+      onLeftConnection?.();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Could not disconnect.",
+      );
+    } finally {
+      setPending(false);
+    }
+  }
+
   async function rate() {
     if (!thread || !canSubmitCategoryRating(draftScores)) return;
     setRatingPending(true);
@@ -178,17 +211,23 @@ export function MessageThread({
   );
   const showDone = canMarkDealDone(thread.isListingOwner, thread.dealStatus);
   const activeChat = shouldShowConnectedChat(thread.connectionEnded);
+  const showDisconnect = canDisconnectConnection({
+    connectionEnded: thread.connectionEnded,
+    dealDone: thread.dealDone,
+  });
 
   return (
     <div className="flex min-h-0 flex-col">
       <div className="shrink-0">
         <p className="text-[12px] tracking-wide text-subtle uppercase">
-          {activeChat ? "Private messages" : "Deal done"}
+          {activeChat ? "Private messages" : thread.dealDone ? "Deal done" : "Disconnected"}
         </p>
         <p className="mt-0.5 text-sm text-muted">
           {activeChat
             ? `Connected with @${handle}. Talk here.`
-            : `This connection has ended. Rate @${handle} if you have not yet. Interested + Accept opens a new thread.`}
+            : thread.dealDone
+              ? `This connection has ended. Rate @${handle} if you have not yet. Interested + Accept opens a new thread.`
+              : `This connection has ended. Interested + Accept opens a new thread.`}
         </p>
         <NeighborRating
           className="mt-1"
@@ -245,6 +284,14 @@ export function MessageThread({
           </form>
         ) : null}
       </div>
+
+      {showDisconnect ? (
+        <DisconnectButton
+          className="mt-4 w-full"
+          busy={pending}
+          onDisconnect={() => void leaveConnection()}
+        />
+      ) : null}
 
       <div className="mt-4 shrink-0 border-t border-border pt-4">
         {thread.dealStatus === "done" ? (
