@@ -64,7 +64,10 @@ export function ListingCard({
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-subtle">
             <span className="font-medium text-fg">
-              <ListingPrice priceLabel={listing.priceLabel} />
+              <ListingPrice
+                dealType={listing.dealType}
+                priceLabel={listing.priceLabel}
+              />
             </span>
             <span className="inline-flex items-center gap-1">
               <MapPin className="size-3" />
@@ -125,7 +128,10 @@ export function ListingCard({
         <div className="mt-auto flex items-end justify-between gap-3 pt-1">
           <div>
             <p className="text-sm font-medium text-fg">
-              <ListingPrice priceLabel={listing.priceLabel} />
+              <ListingPrice
+                dealType={listing.dealType}
+                priceLabel={listing.priceLabel}
+              />
             </p>
             <p className="mt-1 flex items-center gap-1 text-xs text-subtle">
               <MapPin className="size-3" />

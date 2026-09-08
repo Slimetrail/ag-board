@@ -2,15 +2,15 @@ import { createFileRoute, Link, notFound, useRouter } from "@tanstack/react-rout
 import { ArrowLeft, MapPin } from "lucide-react";
 import { ConnectPanel } from "@/components/connect-panel";
 import { ExampleMark, isExampleListing } from "@/components/example-mark";
+import { InterestedButton } from "@/components/interested-button";
+import { ListingEditor } from "@/components/listing-editor";
 import { ListingGrid } from "@/components/listing-grid";
 import { ListingPhotoChat } from "@/components/listing-photo-chat";
 import { ListingPhotoEditor } from "@/components/listing-photo-editor";
 import { ListingPrice } from "@/components/listing-price";
 import { NoteForm } from "@/components/note-form";
-import { PosterStatus } from "@/components/poster-status";
-import { PriceEditor } from "@/components/price-editor";
-import { InterestedButton } from "@/components/interested-button";
 import { OwnerInterestBanner } from "@/components/owner-interest-banner";
+import { PosterStatus } from "@/components/poster-status";
 import { SaveButton } from "@/components/save-button";
 import { Badge } from "@/components/ui/badge";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -120,12 +120,20 @@ function ListingPage() {
               {listing.title}
             </h1>
             <p className="mt-3 text-lg font-medium">
-              <ListingPrice priceLabel={listing.priceLabel} note />
+              <ListingPrice
+                dealType={listing.dealType}
+                priceLabel={listing.priceLabel}
+                note
+              />
             </p>
             <p className="mt-1 text-sm text-muted">{listing.quantity}</p>
             {canEdit ? (
-              <PriceEditor
+              <ListingEditor
                 listingId={listing.id}
+                title={listing.title}
+                summary={listing.summary}
+                description={listing.description}
+                dealType={listing.dealType}
                 priceLabel={listing.priceLabel}
                 quantity={listing.quantity}
                 onSaved={() => void router.invalidate()}
