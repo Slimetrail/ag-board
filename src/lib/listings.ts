@@ -752,6 +752,57 @@ export const updateListingPhoto = createServerFn({ method: "POST" })
     return mapListing(updated[0]!);
   });
 
+export const updateOwnListing = createServerFn({ method: "POST" })
+  .validator(
+    z.object({
+      listingId: z.number().int().positive(),
+      title: z.string().trim().min(4).max(80),
+      summary: z.string().trim().min(8).max(140),
+      description: z.string().trim().min(20).max(1000),
+      dealType: z.enum(DEAL_TYPES),
+      priceLabel: z.string().trim().min(2).max(40),
+      quantity: z.string().trim().min(1).max(40),
+    }),
+  )
+  .middleware([authMiddleware])
+  .handler(async ({ data, context }) => {
+    const sql = await getSql();
+    const rows = await sql.query<ListingRow>(
+      `select * from listings where id = $1 limit 1`,
+      [data.listingId],
+    );
+    const listing = rows[0];
+    if (!listing) throw new Error("That listing is gone.");
+    if (listing.user_id !== context.userId) {
+      throw new Error("You can't change that listing.");
+    }
+    if (listing.is_draft) {
+      throw new Error("Open this draft from the post form.");
+    }
+    const dealType = resolveOfferDealType(data.dealType, data.priceLabel);
+    const updated = await sql.query<ListingRow>(
+      `update listings
+       set title = $1,
+           summary = $2,
+           description = $3,
+           deal_type = $4,
+           price_label = $5,
+           quantity = $6
+       where id = $7
+       returning *`,
+      [
+        data.title,
+        data.summary,
+        data.description,
+        dealType,
+        data.priceLabel,
+        data.quantity,
+        data.listingId,
+      ],
+    );
+    return mapListing(updated[0]!);
+  });
+
 export const updateListingOffer = createServerFn({ method: "POST" })
   .validator(
     z.object({

@@ -370,7 +370,11 @@ function PostForm() {
           </div>
           <div className="grid gap-5 sm:grid-cols-2">
             <Field
-              label="Price outside South Carolina"
+              label={
+                form.dealType === "seeking"
+                  ? "What you can offer"
+                  : "Price outside South Carolina"
+              }
               name="priceLabel"
               placeholder={form.dealType === "seeking" ? "Trade labor or cash" : "$7 / bale"}
               required
@@ -378,7 +382,7 @@ function PostForm() {
               onChange={(event) => patch({ priceLabel: event.target.value })}
             />
             <Field
-              label="Quantity"
+              label={form.dealType === "seeking" ? "When you need it" : "Quantity"}
               name="quantity"
               placeholder={form.dealType === "seeking" ? "As soon as next week" : "80 bales"}
               required
@@ -387,8 +391,9 @@ function PostForm() {
             />
           </div>
           <p className="-mt-2 text-sm text-muted">
-            South Carolina neighbors always see Free. That price is only for
-            other states if you open them.
+            {form.dealType === "seeking"
+              ? "Neighbors see this offer as you wrote it. Seeking is not shown as Free."
+              : "South Carolina neighbors always see Free. That price is only for other states if you open them."}
           </p>
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="grid gap-1.5">

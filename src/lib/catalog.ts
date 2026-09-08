@@ -124,6 +124,27 @@ export function listingDealBadge(listing: {
     .badge;
 }
 
+/**
+ * SC neighbors see most offers as Free. Seeking is a request to buy / trade /
+ * acquire — never paint that as a giveaway. True share / Free labels stay Free.
+ */
+export function scResidentSeesFree(listing: {
+  dealType: string;
+  priceLabel: string;
+}): boolean {
+  const offer = resolveOfferDealType(listing.dealType, listing.priceLabel);
+  return offer !== "seeking";
+}
+
+/** Price text for tiles, list rows, and listing detail. */
+export function listingPriceDisplay(
+  listing: { dealType: string; priceLabel: string },
+  scResident: boolean,
+): string {
+  if (scResident && scResidentSeesFree(listing)) return "Free";
+  return listing.priceLabel;
+}
+
 export function slugify(value: string) {
   const base = value
     .toLowerCase()

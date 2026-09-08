@@ -1,6 +1,6 @@
 import { useBoardStore } from "@/lib/board-store";
 
-/** South Carolina neighbors always see listings as free. */
+/** South Carolina neighbors — giveaways still read as Free; Seeking does not. */
 export function useScResident() {
   const homeState = useBoardStore((s) => s.homeState);
   return !homeState || homeState === "SC";

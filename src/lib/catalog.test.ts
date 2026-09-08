@@ -1,9 +1,14 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   isFreePriceLabel,
   listingDealBadge,
+  listingPriceDisplay,
   resolveOfferDealType,
+  scResidentSeesFree,
 } from "./catalog.ts";
 
 describe("isFreePriceLabel", () => {
@@ -67,5 +72,126 @@ describe("listingDealBadge", () => {
       listingDealBadge({ dealType: "seeking", priceLabel: "Will pay fairly" }),
       "Seeking",
     );
+  });
+});
+
+describe("scResidentSeesFree", () => {
+  it("does not force Free on Seeking / buy intent", () => {
+    assert.equal(
+      scResidentSeesFree({ dealType: "seeking", priceLabel: "Cash" }),
+      false,
+    );
+    assert.equal(
+      scResidentSeesFree({ dealType: "seeking", priceLabel: "Will pay fairly" }),
+      false,
+    );
+    assert.equal(
+      listingPriceDisplay(
+        { dealType: "seeking", priceLabel: "Cash" },
+        true,
+      ),
+      "Cash",
+    );
+    assert.equal(
+      listingPriceDisplay(
+        { dealType: "seeking", priceLabel: "Will pay fairly" },
+        true,
+      ),
+      "Will pay fairly",
+    );
+  });
+
+  it("still shows Free in SC for sales and true giveaways", () => {
+    assert.equal(
+      scResidentSeesFree({ dealType: "sale", priceLabel: "$750 the pair" }),
+      true,
+    );
+    assert.equal(
+      scResidentSeesFree({ dealType: "share", priceLabel: "Borrow it" }),
+      true,
+    );
+    assert.equal(
+      scResidentSeesFree({ dealType: "sale", priceLabel: "Free" }),
+      true,
+    );
+    assert.equal(
+      listingPriceDisplay(
+        { dealType: "sale", priceLabel: "$750 the pair" },
+        true,
+      ),
+      "Free",
+    );
+    assert.equal(
+      listingPriceDisplay(
+        { dealType: "share", priceLabel: "Free at the porch" },
+        true,
+      ),
+      "Free",
+    );
+  });
+
+  it("shows the stored price outside South Carolina", () => {
+    assert.equal(
+      listingPriceDisplay(
+        { dealType: "sale", priceLabel: "$750 the pair" },
+        false,
+      ),
+      "$750 the pair",
+    );
+    assert.equal(
+      listingPriceDisplay(
+        { dealType: "seeking", priceLabel: "Cash" },
+        false,
+      ),
+      "Cash",
+    );
+  });
+
+  it("lets a Seeking post keep Free when the owner wrote Free", () => {
+    assert.equal(
+      listingPriceDisplay({ dealType: "seeking", priceLabel: "Free" }, true),
+      "Free",
+    );
+  });
+});
+
+describe("ListingPrice wiring", () => {
+  it("passes deal type through tile, list, and detail so Seeking is not painted Free", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const price = readFileSync(
+      join(here, "../components/listing-price.tsx"),
+      "utf8",
+    );
+    const card = readFileSync(
+      join(here, "../components/listing-card.tsx"),
+      "utf8",
+    );
+    const detail = readFileSync(
+      join(here, "../routes/listing.$slug.tsx"),
+      "utf8",
+    );
+    assert.match(price, /scResidentSeesFree/);
+    assert.match(price, /listingPriceDisplay/);
+    assert.match(price, /dealType/);
+    assert.match(card, /dealType=\{listing\.dealType\}/);
+    assert.match(card, /priceLabel=\{listing\.priceLabel\}/);
+    assert.match(detail, /dealType=\{listing\.dealType\}/);
+    assert.match(detail, /<ListingEditor/);
+    const editor = readFileSync(
+      join(here, "../components/listing-editor.tsx"),
+      "utf8",
+    );
+    assert.match(editor, /Edit post/);
+    assert.match(editor, /updateOwnListing/);
+    const listings = readFileSync(join(here, "listings.ts"), "utf8");
+    assert.match(listings, /export const updateOwnListing/);
+    const yourListings = readFileSync(
+      join(here, "../routes/listings.tsx"),
+      "utf8",
+    );
+    assert.match(yourListings, /editPosts/);
+    const post = readFileSync(join(here, "../routes/post.tsx"), "utf8");
+    assert.match(post, /Seeking is not shown as Free/);
+    assert.match(post, /What you can offer/);
   });
 });

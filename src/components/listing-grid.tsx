@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { LayoutGrid, List } from "lucide-react";
 import { ListingCard } from "@/components/listing-card";
+import { Button } from "@/components/ui/button";
 import { useBoardStore } from "@/lib/board-store";
 import type { Listing } from "@/lib/listings";
 import { cn } from "@/lib/utils";
@@ -50,10 +52,12 @@ export function ListingGrid({
   listings,
   className,
   interestCounts,
+  editPosts = false,
 }: {
   listings: Listing[];
   className?: string;
   interestCounts?: Record<number, number>;
+  editPosts?: boolean;
 }) {
   const view = useBoardStore((s) => s.boardView);
   const [mounted, setMounted] = useState(false);
@@ -68,14 +72,33 @@ export function ListingGrid({
         className,
       )}
     >
-      {listings.map((listing) => (
-        <ListingCard
-          key={listing.id}
-          listing={listing}
-          variant={resolved}
-          pendingInterest={interestCounts?.[listing.id] ?? 0}
-        />
-      ))}
+      {listings.map((listing) =>
+        editPosts ? (
+          <div key={listing.id} className="grid gap-2">
+            <ListingCard
+              listing={listing}
+              variant={resolved}
+              pendingInterest={interestCounts?.[listing.id] ?? 0}
+            />
+            <Button asChild variant="outline" size="sm" className="justify-self-start">
+              <Link
+                to="/listing/$slug"
+                params={{ slug: listing.slug }}
+                hash="edit-post"
+              >
+                Edit post
+              </Link>
+            </Button>
+          </div>
+        ) : (
+          <ListingCard
+            key={listing.id}
+            listing={listing}
+            variant={resolved}
+            pendingInterest={interestCounts?.[listing.id] ?? 0}
+          />
+        ),
+      )}
     </div>
   );
 }

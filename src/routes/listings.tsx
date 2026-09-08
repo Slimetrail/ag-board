@@ -99,6 +99,7 @@ function YourListings() {
           <ListingGrid
             listings={posted}
             interestCounts={interestCounts}
+            editPosts
             className="mt-6"
           />
         </div>
