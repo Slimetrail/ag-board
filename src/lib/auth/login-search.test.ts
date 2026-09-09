@@ -28,4 +28,12 @@ describe("loginSearch", () => {
       mode: "up",
     });
   });
+
+  it("keeps a safe OAuth error code and drops junk", () => {
+    assert.deepEqual(loginSearch({ error: "name_is_missing", next: "/listings" }), {
+      next: "/listings",
+      error: "name_is_missing",
+    });
+    assert.deepEqual(loginSearch({ error: "https://evil.example" }), {});
+  });
 });

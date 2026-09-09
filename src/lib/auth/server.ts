@@ -46,6 +46,7 @@ import {
   PREVIEW_CLIENT_ID,
   PREVIEW_CLIENT_SECRET,
 } from "./preview";
+import { mapBrokerProfileToUser } from "./oauth-profile";
 import { resolveAuthBaseURL, resolveTrustedOrigins } from "./trusted-origins";
 
 // Kick (and share) PGLite bootstrap as soon as the auth server module loads.
@@ -157,6 +158,10 @@ const grokOAuthPlugin = authConfigured
         // `prompt=select_account`, the user always gets the account chooser
         // and can pick (or switch) which account to sign in with.
         authorizationUrlParams: { idp, prompt: "login" },
+        // Better Auth 1.6 aborts the callback with `name_is_missing` /
+        // `email_is_missing` / `id_is_missing` when the broker omits those
+        // fields (common for X; possible for a thin Google profile).
+        mapProfileToUser: mapBrokerProfileToUser,
       })),
     })
   : null;
@@ -166,6 +171,9 @@ export const auth = betterAuth({
   // Deployed apps inject BETTER_AUTH_SECRET. Preview: process-stable secret on
   // globalThis so HMR doesn't invalidate PGLite-backed sessions (see above).
   secret: env("BETTER_AUTH_SECRET") ?? previewAuthSecret(),
+  // OAuth callback failures that never stored `errorCallbackURL` in state
+  // (expired state cookie, cold instance) still land on /login?error=…
+  onAPIError: { errorURL: "/login" },
   database,
 
   // CSRF / origin check for credentialed auth POSTs (email sign-up/sign-in, …).

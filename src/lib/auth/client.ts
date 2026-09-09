@@ -101,7 +101,10 @@ export async function signIn(
   opts: { callbackURL?: string; errorCallbackURL?: string } = {},
 ): Promise<void> {
   const callbackURL = opts.callbackURL ?? "/";
-  const errorCallbackURL = opts.errorCallbackURL ?? "/";
+  // Failed Google / X callbacks must return to /login, not `/`, so the
+  // machine `?error=` code can be shown as a sentence instead of sitting
+  // invisibly on the home URL (the production "error code" report).
+  const errorCallbackURL = opts.errorCallbackURL ?? "/login";
 
   // Open the popup SYNCHRONOUSLY on the user gesture — before any await
   // (including signOut). Awaiting first drops user-gesture privilege in some

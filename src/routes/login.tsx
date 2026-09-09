@@ -3,7 +3,8 @@ import { Eye, EyeOff } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Wordmark } from "@/components/brand-mark";
 import { loginSearch, type LoginSearch } from "@/lib/auth/login-search";
-import { afterAuthPath } from "@/lib/auth/return-to";
+import { oauthErrorMessage } from "@/lib/auth/oauth-errors";
+import { afterAuthPath, loginErrorCallbackPath } from "@/lib/auth/return-to";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,7 +42,7 @@ function keepSessionToken(token: string | null | undefined) {
 
 function Login() {
   const navigate = useNavigate();
-  const { next, mode: modeSearch } = Route.useSearch();
+  const { next, mode: modeSearch, error: errorCode } = Route.useSearch();
   const afterAuth = afterAuthPath(next);
   const mode = modeSearch === "up" ? "up" : "in";
   const [email, setEmail] = useState("");
@@ -51,7 +52,9 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [agreed, setAgreed] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(() =>
+    oauthErrorMessage(errorCode),
+  );
   const [pending, setPending] = useState(false);
   const checks = passwordChecks(password);
 
@@ -126,14 +129,18 @@ function Login() {
   function onProvider(providerId: string) {
     setError(null);
     setPending(true);
-    void signIn(providerId, { callbackURL: afterAuth })
+    void signIn(providerId, {
+      callbackURL: afterAuth,
+      errorCallbackURL: loginErrorCallbackPath(next),
+    })
       .catch((err: unknown) => {
         const message =
           err instanceof Error ? err.message : "That sign-in didn't finish.";
         setError(
-          /pop-up|cancelled|failed/i.test(message)
-            ? "Google or X didn't finish. Allow pop-ups, or use email below."
-            : message,
+          oauthErrorMessage(message) ??
+            (/pop-up|cancelled|failed/i.test(message)
+              ? "Google or X didn't finish. Allow pop-ups, or use email below."
+              : message),
         );
       })
       .finally(() => setPending(false));

@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { CountySelect } from "@/components/county-select";
@@ -10,6 +10,7 @@ import {
 } from "@/components/tutorial-tiles";
 import { AuthEntryLinks } from "@/components/auth-entry-links";
 import { Button } from "@/components/ui/button";
+import { parseOAuthErrorCode } from "@/lib/auth/oauth-errors";
 import { SignedOut } from "@/lib/auth/gates";
 import { useBoardStore } from "@/lib/board-store";
 import { CATEGORIES, CATEGORY_META } from "@/lib/catalog";
@@ -22,6 +23,18 @@ import {
 } from "@/lib/tutorials";
 
 export const Route = createFileRoute("/")({
+  validateSearch: (search: Record<string, unknown>): { error?: string } => {
+    const error = parseOAuthErrorCode(search.error);
+    return error ? { error } : {};
+  },
+  beforeLoad: ({ search }) => {
+    if (search.error) {
+      throw redirect({
+        to: "/login",
+        search: { error: search.error },
+      });
+    }
+  },
   loader: async () => {
     try {
       const [featured, counts, shared, leases, needs, userTiles] =
