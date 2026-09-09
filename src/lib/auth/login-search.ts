@@ -6,7 +6,7 @@ export type LoginMode = "in" | "up";
 export type LoginSearch = {
   next?: string;
   mode?: LoginMode;
-  /** Better Auth OAuth callback code (`name_is_missing`, …). */
+  /** Leftover Better Auth OAuth callback code (`name_is_missing`, …). */
   error?: string;
 };
 

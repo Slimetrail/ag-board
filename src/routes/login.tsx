@@ -4,16 +4,10 @@ import { useState, type FormEvent } from "react";
 import { Wordmark } from "@/components/brand-mark";
 import { loginSearch, type LoginSearch } from "@/lib/auth/login-search";
 import { oauthErrorMessage } from "@/lib/auth/oauth-errors";
-import { afterAuthPath, loginErrorCallbackPath } from "@/lib/auth/return-to";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  GROK_PROVIDERS,
-  authClient,
-  authEnabled,
-  signIn,
-} from "@/lib/auth/client";
+import { authClient, authEnabled } from "@/lib/auth/client";
 import {
   DISCLAIMER_BODY,
   DISCLAIMER_CHECK,
@@ -43,7 +37,6 @@ function keepSessionToken(token: string | null | undefined) {
 function Login() {
   const navigate = useNavigate();
   const { next, mode: modeSearch, error: errorCode } = Route.useSearch();
-  const afterAuth = afterAuthPath(next);
   const mode = modeSearch === "up" ? "up" : "in";
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
@@ -101,6 +94,7 @@ function Login() {
         const { data, error: signInError } = await authClient.signIn.email({
           email,
           password,
+          rememberMe: true,
           fetchOptions,
         });
         if (signInError) {
@@ -126,26 +120,6 @@ function Login() {
     }
   }
 
-  function onProvider(providerId: string) {
-    setError(null);
-    setPending(true);
-    void signIn(providerId, {
-      callbackURL: afterAuth,
-      errorCallbackURL: loginErrorCallbackPath(next),
-    })
-      .catch((err: unknown) => {
-        const message =
-          err instanceof Error ? err.message : "That sign-in didn't finish.";
-        setError(
-          oauthErrorMessage(message) ??
-            (/pop-up|cancelled|failed/i.test(message)
-              ? "Google or X didn't finish. Allow pop-ups, or use email below."
-              : message),
-        );
-      })
-      .finally(() => setPending(false));
-  }
-
   return (
     <main className="relative isolate min-h-dvh overflow-hidden">
       <img
@@ -166,23 +140,7 @@ function Login() {
 
           {authEnabled ? (
             <>
-              <div className="mt-6 grid gap-2">
-                {GROK_PROVIDERS.map((provider) => (
-                  <Button
-                    key={provider.providerId}
-                    type="button"
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => onProvider(provider.providerId)}
-                  >
-                    Continue with {provider.label}
-                  </Button>
-                ))}
-              </div>
-              <p className="mt-6 text-center text-xs tracking-wide text-subtle uppercase">
-                Or with email
-              </p>
-              <form className="mt-4 grid gap-4" onSubmit={(event) => void onSubmit(event)}>
+              <form className="mt-6 grid gap-4" onSubmit={(event) => void onSubmit(event)}>
                 {mode === "up" ? (
                   <div className="grid gap-1.5">
                     <Label htmlFor="name">Farm or place name</Label>

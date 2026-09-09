@@ -5,11 +5,9 @@
  * local email/password, flip the flag in `./email-password` only (see auth skill).
  *
  * The app runs its own Better Auth at `/api/auth/*`, so the session cookie stays
- * on this app's own origin. Sign-in federates to the shared **Grok auth broker**
- * (`GROK_AUTH_ISSUER`) via the `genericOAuth` plugin — the broker brokers the
- * upstream sign-in methods (Google, X, …) and holds their shared secrets; this
- * app only holds its own client id/secret and names the upstream it wants via
- * each provider's `idp` hint.
+ * on this app's own origin. Production sign-in is email + password. The
+ * `genericOAuth` plugin (Grok auth broker → Google / X) stays wired for other
+ * deploy paths but is unused by the login UI — see `./providers`.
  *
  * Tri-mode:
  *   - Deployed: the deployer injects a per-app `GROK_AUTH_*` + `BETTER_AUTH_URL`
@@ -47,6 +45,7 @@ import {
   PREVIEW_CLIENT_SECRET,
 } from "./preview";
 import { mapBrokerProfileToUser } from "./oauth-profile";
+import { betterAuthSession } from "./session";
 import { resolveAuthBaseURL, resolveTrustedOrigins } from "./trusted-origins";
 
 // Kick (and share) PGLite bootstrap as soon as the auth server module loads.
@@ -201,11 +200,9 @@ export const auth = betterAuth({
     },
   },
 
-  // Cache the session in the short-lived signed `session_data` cookie so reads
-  // (incl. the client's `/get-session`) skip the DB — this shrinks the "loading"
-  // window and reduces auth flicker. See the `auth` skill for the full
-  // flicker-prevention guidance (gate on `isPending`; SSR the session).
-  session: { cookieCache: { enabled: true, maxAge: 300 } },
+  // Durable session cookie until Log out (`./session`). cookieCache stays a
+  // short flicker-prevention cache, not the login lifetime.
+  session: betterAuthSession,
 
   // Local email/password — toggled only via `./email-password` (not a plugin).
   ...(emailAndPasswordEnabled ? { emailAndPassword: { enabled: true } } : {}),
@@ -231,8 +228,8 @@ export const auth = betterAuth({
   plugins: [
     gateIdentitySessions(),
 
-    // One genericOAuth provider per upstream (when auth is on), all federating
-    // to the broker with the SAME client and differing only by the `idp` hint.
+    // Broker OAuth stays registered (preview / other deploy paths) but the
+    // production login UI does not offer or call Google / X.
     ...(grokOAuthPlugin ? [grokOAuthPlugin] : []),
 
     // Accept `Authorization: Bearer <session-token>` as an alternative to the

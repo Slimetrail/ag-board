@@ -150,16 +150,21 @@ export function SiteShell({ children }: { children: ReactNode }) {
                   Post a listing
                 </Link>
               </Button>
+              {user ? (
+                <Link
+                  to="/profile"
+                  onClick={() => setOpen(false)}
+                  className="rounded-md px-3 py-3 text-base font-medium text-fg hover:bg-wash"
+                >
+                  Profile
+                </Link>
+              ) : null}
               <OfficeNav
                 pathname={pathname}
                 className="px-3 py-3 text-base"
                 onClick={() => setOpen(false)}
               />
-              {user ? (
-                <div className="mt-3 px-1">
-                  <UserButton />
-                </div>
-              ) : null}
+              {user ? <UserButton layout="menu" /> : null}
             </nav>
           </div>
         ) : null}
