@@ -19,3 +19,12 @@ export function afterAuthPath(next?: string): string {
   const dest = safeReturnTo(next);
   return dest ? `/agree?next=${encodeURIComponent(dest)}` : "/agree";
 }
+
+/**
+ * Where Better Auth should send a failed Google / X callback.
+ * It appends `?error=<code>` (or `&error=` when `next` is already present).
+ */
+export function loginErrorCallbackPath(next?: string): string {
+  const dest = safeReturnTo(next);
+  return dest ? `/login?next=${encodeURIComponent(dest)}` : "/login";
+}

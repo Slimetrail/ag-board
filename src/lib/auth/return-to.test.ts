@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { afterAuthPath, safeReturnTo } from "./return-to.ts";
+import { afterAuthPath, loginErrorCallbackPath, safeReturnTo } from "./return-to.ts";
 
 describe("safeReturnTo", () => {
   it("keeps the listings page and other in-app paths", () => {
@@ -24,5 +24,13 @@ describe("afterAuthPath", () => {
     assert.equal(afterAuthPath("/listings"), "/agree?next=%2Flistings");
     assert.equal(afterAuthPath("//evil.example"), "/agree");
     assert.equal(afterAuthPath(), "/agree");
+  });
+});
+
+describe("loginErrorCallbackPath", () => {
+  it("returns /login and keeps a safe next for Better Auth to append error=", () => {
+    assert.equal(loginErrorCallbackPath(), "/login");
+    assert.equal(loginErrorCallbackPath("/listings"), "/login?next=%2Flistings");
+    assert.equal(loginErrorCallbackPath("//evil.example"), "/login");
   });
 });
