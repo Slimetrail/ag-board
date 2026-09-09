@@ -21,8 +21,8 @@ export function afterAuthPath(next?: string): string {
 }
 
 /**
- * Where Better Auth should send a failed Google / X callback.
- * It appends `?error=<code>` (or `&error=` when `next` is already present).
+ * Where leftover Better Auth OAuth callbacks send `?error=<code>`.
+ * Production login does not start Google / X; this stays for unused broker paths.
  */
 export function loginErrorCallbackPath(next?: string): string {
   const dest = safeReturnTo(next);

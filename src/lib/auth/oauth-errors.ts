@@ -1,55 +1,43 @@
 /**
- * Human copy for Better Auth OAuth callback `?error=` codes.
+ * Human copy for leftover Better Auth OAuth callback `?error=` codes.
  *
- * Failed Google / X returns land on `errorCallbackURL` with a machine code
- * (`name_is_missing`, `oauth_code_verification_failed`, …). Showing the raw
- * code is what production users reported as "an error code" popping up.
+ * Production login is email-only. The broker plugin may still redirect here
+ * from unused Google / X callbacks (old bookmarks, other deploy paths).
+ * Never show the raw machine code.
  */
 
+const EMAIL_FALLBACK = "That sign-in did not finish. Use email and password below.";
+
 const OAUTH_ERROR_MESSAGES: Record<string, string> = {
-  name_is_missing:
-    "Google or X signed you in, but did not send a display name. Try again, or use email below.",
-  email_is_missing:
-    "Google or X signed you in, but did not send an email. Try again, or use email below.",
-  id_is_missing:
-    "Google or X signed you in, but did not send an account id. Try again, or use email below.",
-  user_info_is_missing:
-    "Google or X signed you in, but the account profile did not load. Try again, or use email below.",
-  oauth_code_verification_failed:
-    "Google or X came back, but this site could not finish the sign-in. Try again, or use email below.",
-  oAuth_code_missing:
-    "Google or X did not send a sign-in code back. Try again, or use email below.",
-  oauth_code_missing:
-    "Google or X did not send a sign-in code back. Try again, or use email below.",
-  state_mismatch:
-    "That sign-in expired or was interrupted. Try Google or X once more.",
-  invalid_state:
-    "That sign-in expired or was interrupted. Try Google or X once more.",
-  issuer_missing:
-    "The sign-in provider omitted its issuer. Try again, or use email below.",
-  issuer_mismatch:
-    "The sign-in provider did not match this site. Try again, or use email below.",
+  name_is_missing: EMAIL_FALLBACK,
+  email_is_missing: EMAIL_FALLBACK,
+  id_is_missing: EMAIL_FALLBACK,
+  user_info_is_missing: EMAIL_FALLBACK,
+  oauth_code_verification_failed: EMAIL_FALLBACK,
+  oAuth_code_missing: EMAIL_FALLBACK,
+  oauth_code_missing: EMAIL_FALLBACK,
+  state_mismatch: "That sign-in expired or was interrupted. Use email and password below.",
+  invalid_state: "That sign-in expired or was interrupted. Use email and password below.",
+  issuer_missing: EMAIL_FALLBACK,
+  issuer_mismatch: EMAIL_FALLBACK,
   account_not_linked:
-    "That Google or X account is not linked to this login. Use email below, or try the same provider you used before.",
-  unable_to_link_account:
-    "Could not attach that Google or X account. Try again, or use email below.",
+    "That account is not linked to this login. Use email and password below.",
+  unable_to_link_account: EMAIL_FALLBACK,
   account_already_linked_to_different_user:
-    "That Google or X account is already used on another login.",
+    "That account is already used on another login. Use email and password below.",
   "email_doesn't_match":
-    "That Google or X email does not match the account you are linking.",
-  access_denied: "Google or X was cancelled. You can try again, or use email below.",
-  invalid_request:
-    "Google or X rejected the sign-in request. Try again, or use email below.",
-  invalid_client:
-    "This site is not registered with the sign-in broker. Use email below until that is configured.",
+    "That email does not match the account you are linking. Use email and password below.",
+  access_denied: "Sign-in was cancelled. Use email and password below.",
+  invalid_request: EMAIL_FALLBACK,
+  invalid_client: "Social sign-in is not used on this site. Use email and password below.",
   unauthorized_client:
-    "This site is not allowed to use Google or X sign-in yet. Use email below.",
+    "Social sign-in is not used on this site. Use email and password below.",
   PROVIDER_CONFIG_NOT_FOUND:
-    "Google and X are not configured on this deployment. Use email below.",
+    "Social sign-in is not used on this site. Use email and password below.",
   INVALID_OAUTH_CONFIGURATION:
-    "Google and X are not configured on this deployment. Use email below.",
+    "Social sign-in is not used on this site. Use email and password below.",
   INVALID_OAUTH_CONFIG:
-    "Google and X are not configured on this deployment. Use email below.",
+    "Social sign-in is not used on this site. Use email and password below.",
 };
 
 /** True when a string looks like a Better Auth / OAuth machine code. */
@@ -79,7 +67,7 @@ export function oauthErrorMessage(code: string | undefined | null): string | nul
     OAUTH_ERROR_MESSAGES[trimmed] ?? OAUTH_ERROR_MESSAGES[trimmed.toLowerCase()];
   if (mapped) return mapped;
   if (isOAuthErrorCode(trimmed)) {
-    return "Google or X didn't finish. Try again, or use email below.";
+    return EMAIL_FALLBACK;
   }
   return null;
 }

@@ -55,8 +55,8 @@ function AgreePage() {
         <div className="max-w-md rounded-xl bg-surface p-6 text-center shadow-[var(--shadow-card)]">
           <p className="font-display text-2xl">Sign-in didn't stick</p>
           <p className="mt-3 text-sm leading-relaxed text-muted">
-            Try email and password on the next screen. If you used Google or X,
-            allow pop-ups and try once more.
+            Try email and password on the next screen. This browser stays
+            signed in until you log out.
           </p>
           <Button asChild className="mt-6">
             <a href="/login">Back to sign in</a>

@@ -2,29 +2,24 @@
 
 South Carolina farm board. Built with Grok.
 
-Look without an account. Sign in to post or request a connection.
+Look without an account. Sign in with email and password to post or request a connection. The same browser stays signed in until you log out (persistent Better Auth session cookie — not device fingerprinting).
 
 ## Deploy
 
 This project is set up for Vercel. Connect the GitHub repo in Vercel and deploy from `main`.
 
-### Social login (Google / X)
+### Sign-in (email + password)
 
-Email/password is local Better Auth. Google and X federate through the Grok auth broker (`https://auth.grok.me`). Production currently falls back to the shared preview client (`grok_preview`) when these are unset — that client is documented as preview-only (`*.grok-sandbox.com` callbacks).
+Production login / signup is email and password only. Google and X buttons are not shown and are not invoked.
 
-For production social login to complete after the provider returns, set these on the Vercel project (Production). Do not commit the values. Generate your own secret; do not reuse a sample:
+Sessions use Better Auth `rememberMe` plus a long sliding cookie (`expiresIn` 1 year, `updateAge` 1 day). Log out still calls `signOut()` and clears the HttpOnly session cookie.
 
-- `BETTER_AUTH_SECRET` — long random string, stable across serverless instances (OAuth state is signed with it)
-- `BETTER_AUTH_URL` — `https://ag-board-jet.vercel.app`
-- `GROK_AUTH_ISSUER` — `https://auth.grok.me` (optional; this is the default)
-- `GROK_AUTH_CLIENT_ID` / `GROK_AUTH_CLIENT_SECRET` — a **per-app** broker client, not `grok_preview`
+The Grok auth broker `genericOAuth` plugin (Google / X) remains registered on the server for live-preview and other deploy paths, but production UX does not use it. You do not need `GROK_AUTH_CLIENT_*` for email login.
 
-Register these redirect URIs on that broker client:
+For email auth on Vercel, set:
 
-- `https://ag-board-jet.vercel.app/api/auth/oauth2/callback/grok-google`
-- `https://ag-board-jet.vercel.app/api/auth/oauth2/callback/grok-x`
-
-The Grok/xAI app deployer normally injects `GROK_AUTH_*`. A plain Vercel Git deploy does not.
+- `BETTER_AUTH_SECRET` — long random string, stable across serverless instances
+- `BETTER_AUTH_URL` — `https://ag-board-jet.vercel.app` (trusted-origin fallback also covers the Vercel production host if this is unset)
 
 ### Photo uploads (Vercel Blob)
 

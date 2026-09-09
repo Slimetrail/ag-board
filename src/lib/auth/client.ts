@@ -37,7 +37,7 @@ export const authClient = createAuthClient({
  */
 export const authEnabled = import.meta.env.VITE_AUTH_ENABLED !== "false";
 
-/** The upstream providers to render sign-in buttons for. */
+/** Broker providers — unused by production login UI (email-only). */
 export { GROK_PROVIDERS };
 
 // ── Live-preview bearer token ────────────────────────────────────────────────
@@ -83,6 +83,9 @@ function inLivePreview(): boolean {
 type PopupMessage = { source: "grok-auth-popup"; token: string | null; error?: string };
 
 /**
+ * Broker OAuth (Google / X via Grok). Unused by production login — that page
+ * is email + password only. Kept for live-preview / other deploy paths.
+ *
  * Start sign-in with one upstream provider (`providerId` from `GROK_PROVIDERS`),
  * federating through the Grok auth broker.
  *

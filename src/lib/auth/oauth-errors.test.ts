@@ -31,23 +31,23 @@ describe("oauthErrorMessage", () => {
     const message = oauthErrorMessage("name_is_missing");
     assert.ok(message);
     assert.doesNotMatch(message, /name_is_missing/);
-    assert.match(message, /email below/i);
+    assert.match(message, /email and password/i);
   });
 
   it("humanizes token-exchange and missing-profile failures", () => {
     assert.match(
       oauthErrorMessage("oauth_code_verification_failed") ?? "",
-      /could not finish/i,
+      /did not finish/i,
     );
     assert.match(oauthErrorMessage("email_is_missing") ?? "", /email/i);
-    assert.match(oauthErrorMessage("invalid_client") ?? "", /broker|email below/i);
+    assert.match(oauthErrorMessage("invalid_client") ?? "", /email and password/i);
   });
 
   it("uses a generic sentence for unknown codes instead of echoing them", () => {
     const message = oauthErrorMessage("totally_new_code");
     assert.equal(
       message,
-      "Google or X didn't finish. Try again, or use email below.",
+      "That sign-in did not finish. Use email and password below.",
     );
   });
 

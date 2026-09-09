@@ -1,10 +1,8 @@
 /**
- * Local email/password sign-in (this app's Better Auth DB — not the broker).
+ * Local email/password — the production sign-in / sign-up path.
  *
- * Off by default. To enable: set `emailAndPasswordEnabled` to `true` below,
- * then build sign-up / sign-in forms with `authClient.signUp.email` /
- * `authClient.signIn.email` from `@/lib/auth/client` (see the auth skill).
- *
- * Do NOT edit `server.ts` for this — that file is frozen pre-wired config.
+ * Forms use `authClient.signUp.email` / `authClient.signIn.email` from
+ * `@/lib/auth/client`. Session lifetime lives in `./session` (imported by
+ * `server.ts`). Broker Google / X stays unused by the login UI.
  */
 export const emailAndPasswordEnabled = true;
