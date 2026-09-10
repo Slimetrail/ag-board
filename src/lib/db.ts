@@ -48,6 +48,7 @@ export interface Sql {
  */
 const globalRef = globalThis as typeof globalThis & {
   __pgSqlPromise__?: Promise<Sql>;
+  __pgPool__?: import("pg").Pool;
   __pgliteInstance__?: Promise<import("@electric-sql/pglite").PGlite>;
   __pgliteMigrateChain__?: Promise<void>;
 };
@@ -96,12 +97,14 @@ function createNeonSql(): Promise<Sql> {
     types.setTypeParser(OID_DATE, identity);
     types.setTypeParser(OID_INTERVAL, identity);
     const pool = new Pool({ connectionString: databaseUrl });
+    globalRef.__pgPool__ = pool;
     return toSql(async <T>(text: string, params: unknown[]) => {
       const res = await pool.query(text, params);
       return res.rows as T[];
     });
   })().catch((err) => {
     globalRef.__pgSqlPromise__ = undefined;
+    globalRef.__pgPool__ = undefined;
     throw err;
   });
   return globalRef.__pgSqlPromise__;
@@ -194,6 +197,61 @@ export function getSql(): Promise<Sql> {
     throw err;
   });
   return sqlPromise;
+}
+
+/**
+ * Run `fn` on one connection inside BEGIN/COMMIT. Needed because pooled
+ * `getSql().query()` can hop connections between statements — a bare BEGIN
+ * would not wrap the deletes that follow.
+ *
+ * Neon uses a checked-out `pg` client. PGLite uses `PGlite.transaction`.
+ * ROLLBACK on throw so a failed account delete cannot leave a half-wipe.
+ */
+export async function withSqlTransaction<T>(
+  fn: (sql: Sql) => Promise<T>,
+): Promise<T> {
+  if (typeof window !== "undefined") {
+    throw new Error(
+      "@/lib/db is server-only — call withSqlTransaction() from a createServerFn handler " +
+        "or a server route loader, never from client code.",
+    );
+  }
+  if (dbSource === "neon") {
+    await getSql();
+    const pool = globalRef.__pgPool__;
+    if (!pool) {
+      throw new Error("Postgres pool is not ready.");
+    }
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const sql = toSql(async <R>(text: string, params: unknown[]) => {
+        const res = await client.query(text, params);
+        return res.rows as R[];
+      });
+      const result = await fn(sql);
+      await client.query("COMMIT");
+      return result;
+    } catch (err) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // Connection may already be dead — keep the original error.
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  const pg = await getPglite();
+  return pg.transaction(async (tx) => {
+    const sql = toSql(async <R>(text: string, params: unknown[]) => {
+      const result = await tx.query<R>(text, params);
+      return result.rows;
+    });
+    return fn(sql);
+  });
 }
 
 /**
