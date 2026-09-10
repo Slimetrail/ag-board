@@ -24,6 +24,8 @@ type BoardState = {
   setBoardGround: (ground: BoardGroundId) => void;
   setListingForm: (form: ListingFormState) => void;
   clearListingForm: () => void;
+  /** Device pins / drafts after the owner deletes their account. */
+  clearAccountLocalState: () => void;
 };
 
 export const useBoardStore = create<BoardState>()(
@@ -57,6 +59,13 @@ export const useBoardStore = create<BoardState>()(
       setBoardGround: (boardGround) => set({ boardGround }),
       setListingForm: (listingForm) => set({ listingForm }),
       clearListingForm: () => set({ listingForm: { ...EMPTY_LISTING_FORM } }),
+      clearAccountLocalState: () =>
+        set({
+          savedIds: [],
+          postedIds: [],
+          farmName: "",
+          listingForm: { ...EMPTY_LISTING_FORM },
+        }),
     }),
     { name: "acre-board" },
   ),

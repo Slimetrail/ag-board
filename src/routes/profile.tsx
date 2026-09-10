@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { CountySelect } from "@/components/county-select";
 import { FarmAvatar } from "@/components/farm-avatar";
 import { PhotoUploadButton } from "@/components/photo-picker";
+import { DeleteAccountSection } from "@/components/delete-account-section";
 import { RequireUse } from "@/components/require-use";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -241,6 +242,8 @@ function ProfileEditor() {
           {pending ? "Saving…" : "Save profile"}
         </Button>
       </form>
+
+      <DeleteAccountSection />
     </div>
   );
 }
